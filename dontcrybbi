@@ -19,7 +19,7 @@ local Window = Fluent:CreateWindow({
 })
 
 ------------------------------------------------------------
--- 🧩 CREATE TABS (tạo 1 lần duy nhất)
+-- 🧩 CREATE TABS
 ------------------------------------------------------------
 local Tabs = {
     Shop = Window:AddTab({ Title = "Shop" }),
@@ -206,7 +206,7 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 TELEPORT — ALL 5 BUTTONS (FIXED)
+-- 🧩 TELEPORT — ALL BUTTONS (MANSION → FRUIT)
 ------------------------------------------------------------
 
 -- Mansion
@@ -275,7 +275,6 @@ Tabs.Teleport:AddButton({
         local nearest = nil
         local minDist = math.huge
 
-        -- Tìm trái trên map
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("Tool") and obj:FindFirstChild("Handle") then
                 local d = (obj.Handle.Position - hrp.Position).Magnitude
@@ -293,7 +292,6 @@ Tabs.Teleport:AddButton({
 
         print("[Fruit] Found:", nearest.Name)
 
-        -- Di chuyển tới trái
         toposition(nearest.Handle.CFrame, function()
             task.wait(0.2)
             pcall(function()
@@ -303,6 +301,45 @@ Tabs.Teleport:AddButton({
             end)
             print("[Fruit] Lụm thành công:", nearest.Name)
         end)
+    end
+})
+
+-- Drop Fruit
+Tabs.Teleport:AddButton({
+    Title = "Drop Fruit",
+    Description = "Thả trái đang giữ",
+    Callback = function()
+
+        local plr = Players.LocalPlayer
+        local char = plr.Character
+        local backpack = plr.Backpack
+
+        -- Ưu tiên trái đang cầm
+        local tool = char:FindFirstChildWhichIsA("Tool")
+
+        -- Nếu không có → tìm trong Backpack
+        if not tool then
+            tool = backpack:FindFirstChildWhichIsA("Tool")
+        end
+
+        if not tool then
+            warn("[Fruit] Bạn không có trái để drop.")
+            return
+        end
+
+        -- Nếu trái nằm trong balo → equip trước rồi drop
+        if tool.Parent == backpack then
+            char.Humanoid:EquipTool(tool)
+            task.wait(0.1)
+        end
+
+        -- Drop fruit
+        pcall(function()
+            tool.Parent = workspace
+            tool.Handle.CFrame = char.HumanoidRootPart.CFrame
+        end)
+
+        print("[Fruit] Đã drop trái:", tool.Name)
     end
 })
 
