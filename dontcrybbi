@@ -19,7 +19,7 @@ local Window = Fluent:CreateWindow({
 })
 
 ------------------------------------------------------------
--- CREATE TABS (ĐÚNG THỨ TỰ ĐỂ TRÁNH LỖI KHÔNG HIỆN)
+-- CREATE TABS (ĐÚNG THỨ TỰ ĐỂ TRÁNH LỖI)
 ------------------------------------------------------------
 local Tabs = {
     Shop      = Window:AddTab({ Title = "Shop" }),
@@ -35,14 +35,13 @@ local Tabs = {
 local TweenService = game:GetService("TweenService")
 local Players      = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local SPEED = 260
 
 local function toposition(Pos, onDone)
-    local plr  = Players.LocalPlayer
-    local char = plr.Character or plr.CharacterAdded:Wait()
-    local hrp  = char:WaitForChild("HumanoidRootPart")
-    local hum  = char:FindFirstChildOfClass("Humanoid")
+    local lp = Players.LocalPlayer
+    local char = lp.Character or lp.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
 
     local root = char:FindFirstChild("Root")
     if not root then
@@ -51,7 +50,7 @@ local function toposition(Pos, onDone)
         root.Anchored = true
         root.Transparency = 1
         root.CanCollide = false
-        root.Size = Vector3.new(20, 0.5, 20)
+        root.Size = Vector3.new(20, .5, 20)
         root.CFrame = hrp.CFrame
         root.Parent = char
     end
@@ -59,15 +58,7 @@ local function toposition(Pos, onDone)
     if hum and hum.Sit then hum.Sit = false end
 
     local dist = (Pos.Position - hrp.Position).Magnitude
-    local info = TweenInfo.new(dist / SPEED, Enum.EasingStyle.Linear)
-
-    if dist <= 10 then
-        hrp.CFrame = Pos
-        if onDone then onDone() end
-        return
-    end
-    
-    local tween = TweenService:Create(root, info, { CFrame = Pos })
+    local tween = TweenService:Create(root, TweenInfo.new(dist / SPEED, Enum.EasingStyle.Linear), {CFrame = Pos})
     tween:Play()
 
     task.spawn(function()
@@ -88,10 +79,9 @@ end
 ------------------------------------------------------------
 Tabs.Shop:AddButton({
     Title = "Buy Sharkman Karate",
-    Description = "Move → Buy Sharkman",
     Callback = function()
         toposition(CFrame.new(-4972.2798, 314.5509, -3221.4897), function()
-            task.wait(.2)
+            task.wait(.25)
             pcall(function()
                 ReplicatedStorage.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
             end)
@@ -101,10 +91,9 @@ Tabs.Shop:AddButton({
 
 Tabs.Shop:AddButton({
     Title = "Buy Dragon Talon",
-    Description = "Move → Buy Dragon Talon",
     Callback = function()
         toposition(CFrame.new(5776.378, 1209.483, 805.036), function()
-            task.wait(.2)
+            task.wait(.25)
             pcall(function()
                 ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
             end)
@@ -126,15 +115,12 @@ end
 
 Tabs.Draco:AddButton({
     Title = "Auto Dojo Quest",
-    Description = "Auto nhận & trả quest",
     Callback = function()
         toposition(dojoPos, function()
             task.wait(.3)
             local q = Players.LocalPlayer.Data.Dojos.Quest.Value
-            if q == "None" then
-                dojoRemote("RequestQuest")
-            elseif q == "Complete" then
-                dojoRemote("CompleteQuest")
+            if q == "None" then dojoRemote("RequestQuest")
+            elseif q == "Complete" then dojoRemote("CompleteQuest")
             end
         end)
     end
@@ -142,10 +128,9 @@ Tabs.Draco:AddButton({
 
 Tabs.Draco:AddButton({
     Title = "Learn Tether",
-    Description = "Học Tether ngay",
     Callback = function()
         toposition(CFrame.new(5776.378, 1209.483, 805.036), function()
-            task.wait(.2)
+            task.wait(.25)
             pcall(function()
                 RF:InvokeServer({ NPC = "Dragon Wizard", Command = "LearnTether" })
             end)
@@ -154,28 +139,21 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- DOJO BELT TAB (FRUIT FUNCTIONS)
+-- DOJO BELT TAB (FRUIT)
 ------------------------------------------------------------
 Tabs.Belt:AddButton({
     Title = "Closet Fruit",
-    Description = "Move → Fruit Closet",
     Callback = function()
-        toposition(CFrame.new(
-            -12550.0712890625,
-            337.4825744628906,
-            -7485.72216796875
-        ))
+        toposition(CFrame.new(-12550.0712890625, 337.4825744628906, -7485.72216796875))
     end
 })
 
 Tabs.Belt:AddButton({
     Title = "Lụm Fruit Gần Nhất",
-    Description = "Move → nearest fruit",
     Callback = function()
         local lp = Players.LocalPlayer
         local char = lp.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end  
+        local hrp = char:FindFirstChild("HumanoidRootPart")
 
         local nearest, minDist = nil, math.huge
         for _, obj in ipairs(workspace:GetDescendants()) do
@@ -187,7 +165,7 @@ Tabs.Belt:AddButton({
                 end
             end
         end
-        if not nearest then warn("Không có trái.") return end
+        if not nearest then return end
 
         toposition(nearest.Handle.CFrame, function()
             task.wait(.1)
@@ -200,16 +178,13 @@ Tabs.Belt:AddButton({
 
 Tabs.Belt:AddButton({
     Title = "Drop Fruit",
-    Description = "Thả trái đang giữ",
     Callback = function()
         local plr = Players.LocalPlayer
         local char = plr.Character
         local bp = plr.Backpack
 
-        local tool = char:FindFirstChildWhichIsA("Tool") or
-                     bp:FindFirstChildWhichIsA("Tool")
-
-        if not tool then warn("Không có trái để drop.") return end
+        local tool = char:FindFirstChildWhichIsA("Tool") or bp:FindFirstChildWhichIsA("Tool")
+        if not tool then return end
 
         if tool.Parent == bp then
             char.Humanoid:EquipTool(tool)
@@ -217,88 +192,59 @@ Tabs.Belt:AddButton({
         end
 
         tool.Parent = workspace
+        tool.Handle.CFrame = char.HumanoidRootPart.CFrame
     end
 })
 
 ------------------------------------------------------------
--- DOJO BELT (ORANGE) TAB — 6 GHẾ (FULL HIỂN THỊ)
+-- DOJO BELT (ORANGE) – ĐÚNG TỌA ĐỘ 6 GHẾ
 ------------------------------------------------------------
 
 -- GHẾ 1
 Tabs.Orange:AddButton({
     Title = "TP Ogren Belt (Ghế 1)",
-    Description = "Move → Ghế 1",
     Callback = function()
-        toposition(CFrame.new(
-            -12591.05859375,
-            337.62872314453125,
-            -7544.7568359375
-        ))
+        toposition(CFrame.new(-12591.05859375, 337.62872314453125, -7544.7568359375))
     end
 })
 
 -- GHẾ 2
 Tabs.Orange:AddButton({
     Title = "TP Ogren Belt (Ghế 2)",
-    Description = "Move → Ghế 2",
     Callback = function()
-        toposition(CFrame.new(
-            -12602.3125,
-            337.6280212402344,
-            -7544.7568359375
-        ))
+        toposition(CFrame.new(-12602.3125, 337.6280212402344, -7544.7568359375))
     end
 })
 
 -- GHẾ 3
 Tabs.Orange:AddButton({
     Title = "TP Ogren Belt (Ghế 3)",
-    Description = "Move → Ghế 3",
     Callback = function()
-        toposition(CFrame.new(
-            -12591.05859375,
-            337.62872314453125,
-            -7568.7568359375
-        ))
+        toposition(CFrame.new(-12591.05859375, 337.62872314453125, -7556.7568359375))
     end
 })
 
 -- GHẾ 4
 Tabs.Orange:AddButton({
     Title = "TP Ogren Belt (Ghế 4)",
-    Description = "Move → Ghế 4",
     Callback = function()
-        toposition(CFrame.new(
-            -12602.3125,
-            337.6280212402344,
-            -7568.7568359375
-        ))
+        toposition(CFrame.new(-12602.3125, 337.6280212402344, -7556.7568359375))
     end
 })
 
 -- GHẾ 5
 Tabs.Orange:AddButton({
     Title = "TP Ogren Belt (Ghế 5)",
-    Description = "Move → Ghế 5",
     Callback = function()
-        toposition(CFrame.new(
-            -12591.05859375,
-            337.62872314453125,
-            -7580.7568359375
-        ))
+        toposition(CFrame.new(-12591.05859375, 337.62872314453125, -7568.7568359375))
     end
 })
 
 -- GHẾ 6
 Tabs.Orange:AddButton({
     Title = "TP Ogren Belt (Ghế 6)",
-    Description = "Move → Ghế 6",
     Callback = function()
-        toposition(CFrame.new(
-            -12602.3125,
-            337.6280212402344,
-            -7580.7568359375
-        ))
+        toposition(CFrame.new(-12602.3125, 337.6280212402344, -7568.7568359375))
     end
 })
 
@@ -306,38 +252,23 @@ Tabs.Orange:AddButton({
 -- TELEPORT TAB
 ------------------------------------------------------------
 Tabs.Teleport:AddButton({
-    Title = "Mansion (Sea 3)",
-    Description = "Move → Mansion",
+    Title = "Mansion",
     Callback = function()
-        toposition(CFrame.new(
-            -12549.6630859375,
-            337.4825744628906,
-            -7531.4306640625
-        ))
+        toposition(CFrame.new(-12549.6630859375, 337.4825744628906, -7531.4306640625))
     end
 })
 
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt 1)",
-    Description = "Move → Hydra B1",
     Callback = function()
-        toposition(CFrame.new(
-            5817.47705078125,
-            1208.5947265625,
-            904.3050537109375
-        ))
+        toposition(CFrame.new(5817.47705078125, 1208.5947265625, 904.3050537109375))
     end
 })
 
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt 2)",
-    Description = "Move → Hydra B2",
     Callback = function()
-        toposition(CFrame.new(
-            5816.978515625,
-            1208.5947265625,
-            898.1947631835938
-        ))
+        toposition(CFrame.new(5816.978515625, 1208.5947265625, 898.1947631835938))
     end
 })
 
@@ -350,9 +281,10 @@ local Btn = Instance.new("ImageButton", ToggleGui)
 Btn.Size = UDim2.new(0, 50, 0, 50)
 Btn.Position = UDim2.new(0.12, 0, 0.09, 0)
 Btn.Image = "rbxassetid://14997704044"
-Btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Btn.BackgroundColor3 = Color3.fromRGB(255,255,255)
 
-Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 10)
+local corner = Instance.new("UICorner", Btn)
+corner.CornerRadius = UDim.new(0, 10)
 
 Btn.MouseButton1Click:Connect(function()
     local vim = game:GetService("VirtualInputManager")
