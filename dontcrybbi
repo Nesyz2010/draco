@@ -2,7 +2,7 @@ repeat task.wait() until game:IsLoaded()
 repeat task.wait() until game.Players and game.Players.LocalPlayer
 
 ------------------------------------------------------------
--- 🧩 FLUENT UI
+-- 🧩 LOAD FLUENT UI
 ------------------------------------------------------------
 local Fluent = loadstring(game:HttpGet(
     "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
@@ -27,7 +27,7 @@ local Tabs = {
 }
 
 ------------------------------------------------------------
--- 🧩 SERVICES + TWEEN
+-- 🧩 SERVICES + GLOBALS
 ------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -35,6 +35,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SPEED = 260
 
+------------------------------------------------------------
+-- 🧩 UNIVERSAL TWEEN FUNCTION
+------------------------------------------------------------
 local function toposition(Pos, onDone)
     local plr = Players.LocalPlayer
     local char = plr.Character or plr.CharacterAdded:Wait()
@@ -44,11 +47,11 @@ local function toposition(Pos, onDone)
     local root = char:FindFirstChild("Root")
     if not root then
         root = Instance.new("Part")
+        root.Name = "Root"
         root.Size = Vector3.new(20,0.5,20)
+        root.Anchored = true
         root.Transparency = 1
         root.CanCollide = false
-        root.Anchored = true
-        root.CFrame = hrp.CFrame
         root.Parent = char
     end
 
@@ -66,16 +69,14 @@ local function toposition(Pos, onDone)
     local tween = TweenService:Create(root, info, { CFrame = Pos })
     tween:Play()
 
-    local running = true
     task.spawn(function()
-        while running and tween.PlaybackState == Enum.PlaybackState.Playing do
+        while tween.PlaybackState == Enum.PlaybackState.Playing do
             task.wait()
             hrp.CFrame = root.CFrame
         end
     end)
 
     tween.Completed:Once(function()
-        running = false
         hrp.CFrame = root.CFrame
         if onDone then onDone() end
     end)
@@ -90,6 +91,7 @@ local function buySharkman()
     pcall(function()
         ReplicatedStorage.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
     end)
+    print("[Sharkman] Mua thành công!")
 end
 
 Tabs.Shop:AddButton({
@@ -112,6 +114,7 @@ local function buyDragonTalon()
     pcall(function()
         ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
     end)
+    print("[Dragon Talon] Mua thành công!")
 end
 
 Tabs.Shop:AddButton({
@@ -126,34 +129,65 @@ Tabs.Shop:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 DRACO — TELE + TALK DOJO TRAINER
+-- 🧩 DRACO — AUTO CHECK / ACCEPT / COMPLETE QUEST
 ------------------------------------------------------------
 local dojoPos = CFrame.new(5865.9468, 1208.5947, 872.6288)
+local RF = game.ReplicatedStorage.Modules.Net["RF/InteractDragonQuest"]
 
-local function talkDojo()
+local function dojoRemote(cmd)
     local args = {
-        [1] = { NPC = "Dojo Trainer", Command = "RequestQuest" }
+        [1] = {
+            NPC = "Dojo Trainer",
+            Command = cmd
+        }
     }
+    return pcall(function()
+        RF:InvokeServer(unpack(args))
+    end)
+end
 
-    pcall(function()
-        game:GetService("ReplicatedStorage")
-        .Modules.Net["RF/InteractDragonQuest"]:InvokeServer(unpack(args))
+local function getQuestState()
+    return Players.LocalPlayer.Data.Dojos.Quest.Value
+end
+
+local function autoDojo()
+    print("========== DOJO AUTO QUEST ==========")
+    print("[System] Teleporting to Dojo...")
+
+    toposition(dojoPos, function()
+        task.wait(0.3)
+
+        local state = getQuestState()
+        print("[Dojo] Quest State:", state)
+
+        if state == "None" then
+            print("[Dojo] Chưa có quest → Nhận mới...")
+            dojoRemote("RequestQuest")
+            print("[Dojo] Đã nhận quest!")
+
+        elseif state == "Complete" then
+            print("[Dojo] Quest hoàn thành → Trả quest...")
+            dojoRemote("CompleteQuest")
+            print("[Dojo] Đã trả quest!")
+
+        else
+            print("[Dojo] Đang làm quest → Không làm gì.")
+        end
+
+        print("======================================")
     end)
 end
 
 Tabs.Draco:AddButton({
-    Title = "Teleport + Talk Dojo Trainer",
-    Description = "Tween → Đến Dojo → Mở hội thoại",
+    Title = "Auto Dojo Quest",
+    Description = "Tele → Kiểm tra → Nhận hoặc Trả quest tự động",
     Callback = function()
-        toposition(dojoPos, function()
-            task.wait(0.25)
-            talkDojo()
-        end)
+        autoDojo()
     end
 })
 
 ------------------------------------------------------------
--- 🧩 TOGGLE UI BUTTON (CAT HUB LOGO)
+-- 🧩 TOGGLE UI BUTTON (CAT HUB LOGO CŨ – FIXED)
 ------------------------------------------------------------
 local ToggleGui = Instance.new("ScreenGui")
 ToggleGui.Parent = game.CoreGui
