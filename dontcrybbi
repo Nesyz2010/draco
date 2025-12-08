@@ -19,7 +19,7 @@ local Window = Fluent:CreateWindow({
 })
 
 ------------------------------------------------------------
--- 🧩 CREATE TABS
+-- 🧩 CREATE TABS (tạo 1 lần duy nhất)
 ------------------------------------------------------------
 local Tabs = {
     Shop = Window:AddTab({ Title = "Shop" }),
@@ -28,7 +28,7 @@ local Tabs = {
 }
 
 ------------------------------------------------------------
--- 🧩 MOVE SYSTEM (TOPOSITION — MOVE LIKE BUY MELEE)
+-- 🧩 TWEEN MOVE SYSTEM (MOVE LIKE BUY MELEE)
 ------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -206,7 +206,7 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 TELEPORT — 5 NÚT (MANSION, HYDRA, CLOSET, LỤM FRUIT)
+-- 🧩 TELEPORT — ALL 5 BUTTONS (FIXED)
 ------------------------------------------------------------
 
 -- Mansion
@@ -264,7 +264,7 @@ Tabs.Teleport:AddButton({
 -- Lụm Fruit gần nhất
 Tabs.Teleport:AddButton({
     Title = "Lụm Fruit Gần Nhất",
-    Description = "Move → pickup nearest fruit",
+    Description = "Move → Pickup nearest fruit",
     Callback = function()
 
         local lp = Players.LocalPlayer
@@ -275,6 +275,7 @@ Tabs.Teleport:AddButton({
         local nearest = nil
         local minDist = math.huge
 
+        -- Tìm trái trên map
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("Tool") and obj:FindFirstChild("Handle") then
                 local d = (obj.Handle.Position - hrp.Position).Magnitude
@@ -292,6 +293,7 @@ Tabs.Teleport:AddButton({
 
         print("[Fruit] Found:", nearest.Name)
 
+        -- Di chuyển tới trái
         toposition(nearest.Handle.CFrame, function()
             task.wait(0.2)
             pcall(function()
