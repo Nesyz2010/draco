@@ -207,7 +207,6 @@ Tabs.Orange:AddButton({
         toposition(CFrame.new(-12591.05859375, 337.62872314453125, -7544.7568359375))
     end
 })
-Tabs.Orange:AddParagraph("Mô tả", "Vị trí ghế số 1 của Orange Belt")
 
 -- GHẾ 2
 Tabs.Orange:AddButton({
