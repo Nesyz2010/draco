@@ -157,10 +157,12 @@ local function autoDojo()
             print("[Dojo] Accepting quest...")
             dojoRemote("RequestQuest")
             print("[Dojo] Quest accepted!")
+
         elseif state == "Complete" then
             print("[Dojo] Submitting quest...")
             dojoRemote("CompleteQuest")
             print("[Dojo] Quest submitted!")
+
         else
             print("[Dojo] Quest in progress — no action.")
         end
@@ -183,10 +185,8 @@ Tabs.Draco:AddButton({
 local tetherPos = CFrame.new(5776.378, 1209.483, 805.036)
 
 local function learnTether()
-    local args = { NPC = "Dragon Wizard", Command = "LearnTether" }
-
     local ok, err = pcall(function()
-        RF:InvokeServer(args)
+        RF:InvokeServer({ NPC = "Dragon Wizard", Command = "LearnTether" })
     end)
 
     if ok then
@@ -198,7 +198,7 @@ end
 
 Tabs.Draco:AddButton({
     Title = "Learn Tether",
-    Description = "Teleport → Learn Tether",
+    Description = "Tween → Learn Tether",
     Callback = function()
         toposition(tetherPos, function()
             task.wait(0.25)
@@ -208,28 +208,32 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 TELEPORT TAB — 2 DIRECT TELEPORTS
+-- 🧩 TELEPORT TAB — MOVE INSTEAD OF TELEPORT (TWEEN)
 ------------------------------------------------------------
-local function directTP(cf)
-    local hrp = Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
-    hrp.CFrame = cf
-end
 
 -- Mansion
 Tabs.Teleport:AddButton({
     Title = "Mansion (Sea 3)",
-    Description = "Direct Teleport to Mansion",
+    Description = "Move to Mansion (no rollback)",
     Callback = function()
-        directTP(CFrame.new(-12549.6630859375, 337.4825744628906, -7531.4306640625))
+        toposition(CFrame.new(
+            -12549.6630859375,
+            337.4825744628906,
+            -7531.4306640625
+        ))
     end
 })
 
--- Hydra (Blue Belt Zone)
+-- Hydra (Blue Belt)
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt)",
-    Description = "Direct Teleport to Hydra Blue Belt",
+    Description = "Move to Hydra (no rollback)",
     Callback = function()
-        directTP(CFrame.new(5817.47705078125, 1208.5947265625, 904.3050537109375))
+        toposition(CFrame.new(
+            5817.47705078125,
+            1208.5947265625,
+            904.3050537109375
+        ))
     end
 })
 
