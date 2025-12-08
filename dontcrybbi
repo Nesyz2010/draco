@@ -28,7 +28,7 @@ local Tabs = {
 }
 
 ------------------------------------------------------------
--- 🧩 SERVICES + TWEEN SYSTEM (ĐI NHƯ MUA MELEE)
+-- 🧩 SERVICES + TWEEN SYSTEM (MOVE LIKE BUY MELEE)
 ------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -59,7 +59,6 @@ local function toposition(Pos, onDone)
     local dist = (Pos.Position - hrp.Position).Magnitude
     local info = TweenInfo.new(dist / SPEED, Enum.EasingStyle.Linear)
 
-    -- Nếu gần rồi thì đặt thẳng
     if dist <= 10 then
         hrp.CFrame = Pos
         if onDone then onDone() end
@@ -155,17 +154,15 @@ local function autoDojo()
         print("[Dojo] State:", state)
 
         if state == "None" then
-            print("[Dojo] Requesting quest...")
             dojoRemote("RequestQuest")
             print("[Dojo] Quest Accepted!")
 
         elseif state == "Complete" then
-            print("[Dojo] Submitting quest...")
             dojoRemote("CompleteQuest")
-            print("[Dojo] Quest Completed!")
+            print("[Dojo] Quest Submitted!")
 
         else
-            print("[Dojo] Quest in progress — skip.")
+            print("[Dojo] Quest in progress...")
         end
 
         print("=================================")
@@ -225,29 +222,29 @@ Tabs.Teleport:AddButton({
     end
 })
 
--- Hydra Blue Belt
+-- Hydra Blue Belt 1
 Tabs.Teleport:AddButton({
-    Title = "Hydra (Blue Belt)",
-    Description = "Move to Hydra (same as buy melee)",
+    Title = "Hydra (Blue Belt 1)",
+    Description = "Move to Hydra Blue Belt (same as buy melee)",
     Callback = function()
         toposition(CFrame.new(
-            5817.4765625,
-             1208.5947265625,
-              904.3052368164062
+            5817.47705078125,
+            1208.5947265625,
+            904.3050537109375
         ))
     end
 })
 
-Tabs.Teleport:Addbutton({
+-- Hydra Blue Belt 2 (MỚI THÊM)
+Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt 2)",
-    Description = "Move to Hydra (same as buy melee)",
+    Description = "Move to Hydra Blue Belt 2 (same as buy melee)",
     Callback = function()
         toposition(CFrame.new(
             5816.978515625,
-         1208.5947265625,
-          898.1947631835938
-    ))
-        
+            1208.5947265625,
+            898.1947631835938
+        ))
     end
 })
 
