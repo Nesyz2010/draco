@@ -19,13 +19,13 @@ local Window = Fluent:CreateWindow({
 })
 
 ------------------------------------------------------------
--- 🧩 CREATE TABS
+-- 🧩 CREATE TABS (ĐÃ FIX ĐÚNG THỨ TỰ)
 ------------------------------------------------------------
 local Tabs = {
     Shop      = Window:AddTab({ Title = "Shop" }),
     Draco     = Window:AddTab({ Title = "Draco" }),
     Belt      = Window:AddTab({ Title = "Dojo Belt" }),
-    Orange    = Window:AddTab({ Title = "Dojo Belt (Orange)" }),
+    Orange    = Window:AddTab({ Title = "Dojo Belt (Orange)" }), -- ⭐ Tab mới
     Teleport  = Window:AddTab({ Title = "Teleport" }),
 }
 
@@ -84,7 +84,7 @@ local function toposition(Pos, onDone)
 end
 
 ------------------------------------------------------------
--- 🧩 SHOP — BUY SHARKMAN
+-- 🧩 SHOP — BUY SHARKMAN KARATE
 ------------------------------------------------------------
 Tabs.Shop:AddButton({
     Title = "Buy Sharkman Karate",
@@ -242,12 +242,13 @@ Tabs.Belt:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 DOJO BELT (ORANGE) — TP GHẾ 1 + GHẾ 2
+-- 🧩 DOJO BELT (ORANGE) — GHẾ 1 + GHẾ 2 (ĐÃ FIX)
 ------------------------------------------------------------
+
 -- GHẾ 1
 Tabs.Orange:AddButton({
     Title = "TP Ogren Belt",
-    Description = "Move → Ogren Belt",
+    Description = "Move → Ogren Belt (Seat 1)",
     Callback = function()
         toposition(CFrame.new(
             -12591.05859375,
@@ -275,7 +276,7 @@ Tabs.Orange:AddButton({
 ------------------------------------------------------------
 Tabs.Teleport:AddButton({
     Title = "Mansion (Sea 3)",
-    Description = "Move to Mansion",
+    Description = "Move → Mansion",
     Callback = function()
         toposition(CFrame.new(
             -12549.6630859375,
@@ -287,7 +288,7 @@ Tabs.Teleport:AddButton({
 
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt 1)",
-    Description = "Move to Hydra B1",
+    Description = "Move → Hydra B1",
     Callback = function()
         toposition(CFrame.new(
             5817.47705078125,
@@ -299,7 +300,7 @@ Tabs.Teleport:AddButton({
 
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt 2)",
-    Description = "Move to Hydra B2",
+    Description = "Move → Hydra B2",
     Callback = function()
         toposition(CFrame.new(
             5816.978515625,
@@ -310,17 +311,17 @@ Tabs.Teleport:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 UI TOGGLE BUTTON (CAT HUB ICON)
+-- 🧩 UI TOGGLE BUTTON
 ------------------------------------------------------------
 local ToggleGui = Instance.new("ScreenGui", game.CoreGui)
-
 local Btn = Instance.new("ImageButton", ToggleGui)
-Btn.Size = UDim2.new(0,50,0,50)
-Btn.Position = UDim2.new(0.12,0,0.09,0)
-Btn.Image = "rbxassetid://14997704044"
-Btn.BackgroundColor3 = Color3.fromRGB(255,255,255)
 
-Instance.new("UICorner", Btn).CornerRadius = UDim.new(0,10)
+Btn.Size = UDim2.new(0, 50, 0, 50)
+Btn.Position = UDim2.new(0.12, 0, 0.09, 0)
+Btn.Image = "rbxassetid://14997704044"
+Btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+
+Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 10)
 
 Btn.MouseButton1Click:Connect(function()
     local vim = game:GetService("VirtualInputManager")
