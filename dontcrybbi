@@ -1,26 +1,21 @@
 repeat task.wait() until game:IsLoaded()
 repeat task.wait() until game.Players and game.Players.LocalPlayer
 
-------------------------------------------------------------
--- 🧩 LOAD UI FLUENT
-------------------------------------------------------------
 local Fluent = loadstring(game:HttpGet(
     "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
 ))()
 
 local Window = Fluent:CreateWindow({
-    Title = "Cat Hub",
-    SubTitle = "Shop Controller",
+    Title = "Draco Hub",
+    SubTitle = "HoanqLamDepTrai",
     TabWidth = 160,
     Size = UDim2.fromOffset(530, 350),
     Acrylic = false,
     Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.End
+    MinimizeKey = Enum.KeyCode.End   
 })
 
-------------------------------------------------------------
--- 🧩 TABS
-------------------------------------------------------------
+
 local Tabs = {
     Shop = Window:AddTab({ Title = "Shop" }),
 }
@@ -33,7 +28,7 @@ local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local SPEED = 260
+local SPEED = 300
 local targetPos = CFrame.new(-4972.2798, 314.5509, -3221.4897)
 
 local function buySharkmanKarate()
@@ -86,13 +81,11 @@ local function toposition(Pos, onDone)
     end)
 end
 
-------------------------------------------------------------
--- 🧩 NÚT TRONG TAB SHOP
-------------------------------------------------------------
+
 
 Tabs.Shop:AddButton({
     Title = "Buy Sharkman Karate",
-    Description = "Auto đi tới NPC + mua Sharkman Karate",
+    Description = "Tween And Buy Sharkman Karate",
     Callback = function()
         toposition(targetPos, function()
             task.wait(0.25)
@@ -101,30 +94,36 @@ Tabs.Shop:AddButton({
     end
 })
 
-------------------------------------------------------------
--- 🧩 ICON BẬT / TẮT UI (GIỐNG File Bạn Gửi)
-------------------------------------------------------------
 
-local gui = Instance.new("ScreenGui")
-local btn = Instance.new("ImageButton")
-local corner = Instance.new("UICorner")
 
-gui.Name = "ToggleUI"
-gui.Parent = game.CoreGui
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+local ToggleGui = Instance.new("ScreenGui")
+ToggleGui.Name = "ToggleUI"
+ToggleGui.Parent = game.CoreGui
+ToggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-btn.Name = "ToggleButton"
-btn.Parent = gui
-btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-btn.BorderSizePixel = 0
-btn.Position = UDim2.new(0.12, 0, 0.09, 0)
-btn.Size = UDim2.new(0, 50, 0, 50)
-btn.Image = "rbxassetid://15943857180"  -- icon gốc từ file bạn gửi
+local ToggleBtn = Instance.new("ImageButton")
+ToggleBtn.Name = "ToggleButton"
+ToggleBtn.Parent = ToggleGui
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.BorderSizePixel = 0
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.Position = UDim2.new(0.12, 0, 0.09, 0)
 
-corner.CornerRadius = UDim.new(0, 10)
-corner.Parent = btn
 
-btn.MouseButton1Click:Connect(function()
-    -- ẨN/HIỆN UI bằng cách gửi phím END y như script gốc
-    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.End, false, game)
+ToggleBtn.Image = "rbxassetid://15943857180"
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = ToggleBtn
+
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    game:GetService("VirtualInputManager"):SendKeyEvent(
+        true,
+        Enum.KeyCode.End,
+        false,
+        game
+    )
 end)
+
+
