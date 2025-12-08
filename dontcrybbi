@@ -28,7 +28,7 @@ local Tabs = {
 }
 
 ------------------------------------------------------------
--- 🧩 SERVICES + TWEEN SYSTEM
+-- 🧩 SERVICES + TWEEN SYSTEM (ĐI NHƯ MUA MELEE)
 ------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -59,6 +59,7 @@ local function toposition(Pos, onDone)
     local dist = (Pos.Position - hrp.Position).Magnitude
     local info = TweenInfo.new(dist / SPEED, Enum.EasingStyle.Linear)
 
+    -- Nếu gần rồi thì đặt thẳng
     if dist <= 10 then
         hrp.CFrame = Pos
         if onDone then onDone() end
@@ -95,7 +96,7 @@ end
 
 Tabs.Shop:AddButton({
     Title = "Buy Sharkman Karate",
-    Description = "Tween → Buy Sharkman Karate",
+    Description = "Move → Buy Sharkman",
     Callback = function()
         toposition(sharkPos, function()
             task.wait(0.25)
@@ -118,7 +119,7 @@ end
 
 Tabs.Shop:AddButton({
     Title = "Buy Dragon Talon",
-    Description = "Tween → Buy Dragon Talon",
+    Description = "Move → Buy Dragon Talon",
     Callback = function()
         toposition(dragonPos, function()
             task.wait(0.25)
@@ -145,26 +146,26 @@ end
 
 local function autoDojo()
     print("======== DOJO AUTO QUEST ========")
-    print("[System] Teleporting...")
+    print("[System] Moving to Dojo...")
 
     toposition(dojoPos, function()
         task.wait(0.3)
-        
+
         local state = getQuestState()
         print("[Dojo] State:", state)
 
         if state == "None" then
-            print("[Dojo] Accepting quest...")
+            print("[Dojo] Requesting quest...")
             dojoRemote("RequestQuest")
-            print("[Dojo] Quest accepted!")
+            print("[Dojo] Quest Accepted!")
 
         elseif state == "Complete" then
             print("[Dojo] Submitting quest...")
             dojoRemote("CompleteQuest")
-            print("[Dojo] Quest submitted!")
+            print("[Dojo] Quest Completed!")
 
         else
-            print("[Dojo] Quest in progress — no action.")
+            print("[Dojo] Quest in progress — skip.")
         end
 
         print("=================================")
@@ -173,7 +174,7 @@ end
 
 Tabs.Draco:AddButton({
     Title = "Auto Dojo Quest",
-    Description = "Tele → Check → Accept/Complete",
+    Description = "Move → Auto Accept/Complete Quest",
     Callback = function()
         autoDojo()
     end
@@ -198,7 +199,7 @@ end
 
 Tabs.Draco:AddButton({
     Title = "Learn Tether",
-    Description = "Tween → Learn Tether",
+    Description = "Move → Learn Tether",
     Callback = function()
         toposition(tetherPos, function()
             task.wait(0.25)
@@ -208,13 +209,13 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 TELEPORT TAB — MOVE INSTEAD OF TELEPORT (TWEEN)
+-- 🧩 TELEPORT TAB — MOVE EXACT LIKE BUY MELEE
 ------------------------------------------------------------
 
 -- Mansion
 Tabs.Teleport:AddButton({
     Title = "Mansion (Sea 3)",
-    Description = "Move to Mansion (no rollback)",
+    Description = "Move to Mansion (same as buy melee)",
     Callback = function()
         toposition(CFrame.new(
             -12549.6630859375,
@@ -224,10 +225,10 @@ Tabs.Teleport:AddButton({
     end
 })
 
--- Hydra (Blue Belt)
+-- Hydra Blue Belt
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt)",
-    Description = "Move to Hydra (no rollback)",
+    Description = "Move to Hydra (same as buy melee)",
     Callback = function()
         toposition(CFrame.new(
             5817.47705078125,
