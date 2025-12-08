@@ -24,10 +24,11 @@ local Window = Fluent:CreateWindow({
 local Tabs = {
     Shop = Window:AddTab({ Title = "Shop" }),
     Draco = Window:AddTab({ Title = "Draco" }),
+    Teleport = Window:AddTab({ Title = "Teleport" }),
 }
 
 ------------------------------------------------------------
--- 🧩 SERVICES + TWEEN
+-- 🧩 SERVICES + TWEEN SYSTEM
 ------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -41,13 +42,14 @@ local function toposition(Pos, onDone)
     local hrp = char:WaitForChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
 
+    -- Root part
     local root = char:FindFirstChild("Root")
     if not root then
         root = Instance.new("Part")
         root.Name = "Root"
-        root.Size = Vector3.new(20,0.5,20)
-        root.Anchored = true
+        root.Size = Vector3.new(20, 0.5, 20)
         root.Transparency = 1
+        root.Anchored = true
         root.CanCollide = false
         root.CFrame = hrp.CFrame
         root.Parent = char
@@ -89,12 +91,12 @@ local function buySharkman()
     pcall(function()
         ReplicatedStorage.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
     end)
-    print("[Sharkman] Mua thành công!")
+    print("[Sharkman] Bought successfully!")
 end
 
 Tabs.Shop:AddButton({
     Title = "Buy Sharkman Karate",
-    Description = "Tween → Mua Sharkman Karate",
+    Description = "Tween → Buy Sharkman Karate",
     Callback = function()
         toposition(sharkPos, function()
             task.wait(0.25)
@@ -112,12 +114,12 @@ local function buyDragonTalon()
     pcall(function()
         ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
     end)
-    print("[Dragon Talon] Mua thành công!")
+    print("[Dragon Talon] Bought successfully!")
 end
 
 Tabs.Shop:AddButton({
     Title = "Buy Dragon Talon",
-    Description = "Tween → Mua Dragon Talon",
+    Description = "Tween → Buy Dragon Talon",
     Callback = function()
         toposition(dragonPos, function()
             task.wait(0.25)
@@ -127,7 +129,7 @@ Tabs.Shop:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 DRACO — AUTO DOJO QUEST (CHECK → ACCEPT / COMPLETE)
+-- 🧩 DRACO — AUTO DOJO QUEST
 ------------------------------------------------------------
 local dojoPos = CFrame.new(5865.9468, 1208.5947, 872.6288)
 local RF = game.ReplicatedStorage.Modules.Net["RF/InteractDragonQuest"]
@@ -143,36 +145,34 @@ local function getQuestState()
 end
 
 local function autoDojo()
-    print("========== DOJO AUTO QUEST ==========")
-    print("[System] Teleporting to Dojo...")
+    print("======== DOJO AUTO QUEST ========")
+    print("[System] Teleporting...")
 
     toposition(dojoPos, function()
         task.wait(0.3)
-        
+
         local state = getQuestState()
-        print("[Dojo] Quest State:", state)
+        print("[Dojo] State:", state)
 
         if state == "None" then
-            print("[Dojo] Nhận quest...")
+            print("[Dojo] Accepting Quest...")
             dojoRemote("RequestQuest")
             print("[Dojo] Quest Accepted!")
-
         elseif state == "Complete" then
-            print("[Dojo] Trả quest...")
+            print("[Dojo] Submitting Quest...")
             dojoRemote("CompleteQuest")
             print("[Dojo] Quest Submitted!")
-
         else
-            print("[Dojo] Quest đang làm → Không làm gì.")
+            print("[Dojo] Quest in progress — No action.")
         end
 
-        print("======================================")
+        print("=================================")
     end)
 end
 
 Tabs.Draco:AddButton({
     Title = "Auto Dojo Quest",
-    Description = "Tele → Check → Nhận/Trả quest tự động",
+    Description = "Tele → Auto Check → Auto Accept/Complete",
     Callback = function()
         autoDojo()
     end
@@ -191,15 +191,15 @@ local function learnTether()
     end)
 
     if ok then
-        warn("[Tether] Learn Success!")
+        warn("[Tether] Learned successfully!")
     else
-        warn("[Tether] Error:", err)
+        warn("[Tether] Failed:", err)
     end
 end
 
 Tabs.Draco:AddButton({
     Title = "Learn Tether",
-    Description = "Teleport → NPC Dragon Wizard → Learn Tether",
+    Description = "Teleport → Learn Tether",
     Callback = function()
         toposition(tetherPos, function()
             task.wait(0.25)
@@ -209,17 +209,43 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 UI TOGGLE (CAT HUB LOGO CŨ – ĐÃ FIX)
+-- 🧩 TELEPORT TAB — ONLY 2 LOCATIONS
+------------------------------------------------------------
+local function simpleTP(cf)
+    local hrp = Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+    hrp.CFrame = cf
+end
+
+-- Mansion
+Tabs.Teleport:AddButton({
+    Title = "Mansion (Sea 3)",
+    Description = "Teleport to Mansion",
+    Callback = function()
+        simpleTP(CFrame.new(-12549.6630859375, 337.4825744628906, -7531.4306640625))
+    end
+})
+
+-- Hydra Blue Belt Zone
+Tabs.Teleport:AddButton({
+    Title = "Hydra (Blue Belt)",
+    Description = "Teleport to Hydra Blue Belt Area",
+    Callback = function()
+        simpleTP(CFrame.new(5817.47705078125, 1208.5947265625, 904.3050537109375))
+    end
+})
+
+------------------------------------------------------------
+-- 🧩 UI TOGGLE BUTTON (CAT HUB LOGO)
 ------------------------------------------------------------
 local ToggleGui = Instance.new("ScreenGui")
 ToggleGui.Parent = game.CoreGui
 
 local ToggleBtn = Instance.new("ImageButton")
 ToggleBtn.Parent = ToggleGui
-ToggleBtn.Size = UDim2.new(0,50,0,50)
-ToggleBtn.Position = UDim2.new(0.12,0,0.09,0)
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.Position = UDim2.new(0.12, 0, 0.09, 0)
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
-ToggleBtn.Image = "rbxassetid://14997704044" -- cat hub old logo
+ToggleBtn.Image = "rbxassetid://14997704044"
 
 local UICorner = Instance.new("UICorner", ToggleBtn)
 UICorner.CornerRadius = UDim.new(0,10)
