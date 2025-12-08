@@ -25,7 +25,7 @@ local Tabs = {
     Shop      = Window:AddTab({ Title = "Shop" }),
     Draco     = Window:AddTab({ Title = "Draco" }),
     Belt      = Window:AddTab({ Title = "Dojo Belt" }),
-    Orange    = Window:AddTab({ Title = "Dojo Belt (Orange)" }), -- ⭐ TAB MỚI
+    Orange    = Window:AddTab({ Title = "Dojo Belt (Orange)" }),
     Teleport  = Window:AddTab({ Title = "Teleport" }),
 }
 
@@ -86,13 +86,11 @@ end
 ------------------------------------------------------------
 -- 🧩 SHOP — BUY SHARKMAN
 ------------------------------------------------------------
-local sharkPos = CFrame.new(-4972.2798, 314.5509, -3221.4897)
-
 Tabs.Shop:AddButton({
     Title = "Buy Sharkman Karate",
     Description = "Move → Buy Sharkman",
     Callback = function()
-        toposition(sharkPos, function()
+        toposition(CFrame.new(-4972.2798, 314.5509, -3221.4897), function()
             task.wait(.2)
             pcall(function()
                 ReplicatedStorage.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
@@ -104,13 +102,11 @@ Tabs.Shop:AddButton({
 ------------------------------------------------------------
 -- 🧩 SHOP — BUY DRAGON TALON
 ------------------------------------------------------------
-local dragonPos = CFrame.new(5776.378, 1209.483, 805.036)
-
 Tabs.Shop:AddButton({
     Title = "Buy Dragon Talon",
     Description = "Move → Buy Dragon Talon",
     Callback = function()
-        toposition(dragonPos, function()
+        toposition(CFrame.new(5776.378, 1209.483, 805.036), function()
             task.wait(.2)
             pcall(function()
                 ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
@@ -131,26 +127,20 @@ local function dojoRemote(cmd)
     end)
 end
 
-local function autoDojo()
-    toposition(dojoPos, function()
-        task.wait(.3)
-
-        local state = Players.LocalPlayer.Data.Dojos.Quest.Value
-
-        if state == "None" then
-            dojoRemote("RequestQuest")
-        elseif state == "Complete" then
-            dojoRemote("CompleteQuest")
-        else
-            print("[Dojo] Đang làm quest…")
-        end
-    end)
-end
-
 Tabs.Draco:AddButton({
     Title = "Auto Dojo Quest",
-    Description = "Auto nhận & trả quest",
-    Callback = autoDojo
+    Description = "Auto nhận/trả quest",
+    Callback = function()
+        toposition(dojoPos, function()
+            task.wait(.3)
+            local q = Players.LocalPlayer.Data.Dojos.Quest.Value
+            if q == "None" then
+                dojoRemote("RequestQuest")
+            elseif q == "Complete" then
+                dojoRemote("CompleteQuest")
+            end
+        end)
+    end
 })
 
 ------------------------------------------------------------
@@ -160,7 +150,7 @@ Tabs.Draco:AddButton({
     Title = "Learn Tether",
     Description = "Học Tether ngay",
     Callback = function()
-        toposition(dragonPos, function()
+        toposition(CFrame.new(5776.378, 1209.483, 805.036), function()
             task.wait(.2)
             pcall(function()
                 RF:InvokeServer({ NPC = "Dragon Wizard", Command = "LearnTether" })
@@ -170,10 +160,8 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 DOJO BELT TAB — CLOSET / PICKUP / DROP FRUIT
+-- 🧩 DOJO BELT — CLOSET / PICKUP / DROP FRUIT
 ------------------------------------------------------------
-
--- Closet Fruit
 Tabs.Belt:AddButton({
     Title = "Closet Fruit",
     Description = "Move → Fruit Closet",
@@ -186,7 +174,6 @@ Tabs.Belt:AddButton({
     end
 })
 
--- Lụm Fruit Gần Nhất
 Tabs.Belt:AddButton({
     Title = "Lụm Fruit Gần Nhất",
     Description = "Move → Pickup nearest fruit",
@@ -194,16 +181,16 @@ Tabs.Belt:AddButton({
 
         local lp = Players.LocalPlayer
         local char = lp.Character
-        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
 
         local nearest, minDist = nil, math.huge
 
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("Tool") and obj:FindFirstChild("Handle") then
-                local dist = (obj.Handle.Position - hrp.Position).Magnitude
-                if dist < minDist then
-                    minDist = dist
+                local d = (obj.Handle.Position - hrp.Position).Magnitude
+                if d < minDist then
+                    minDist = d
                     nearest = obj
                 end
             end
@@ -225,7 +212,6 @@ Tabs.Belt:AddButton({
     end
 })
 
--- Drop Fruit
 Tabs.Belt:AddButton({
     Title = "Drop Fruit",
     Description = "Thả trái đang giữ",
@@ -233,17 +219,17 @@ Tabs.Belt:AddButton({
 
         local plr = Players.LocalPlayer
         local char = plr.Character
-        local backpack = plr.Backpack
+        local bp  = plr.Backpack
 
         local tool = char:FindFirstChildWhichIsA("Tool") or 
-                     backpack:FindFirstChildWhichIsA("Tool")
+                     bp:FindFirstChildWhichIsA("Tool")
 
         if not tool then
             warn("[Fruit] Không có trái để drop.")
             return
         end
 
-        if tool.Parent == backpack then
+        if tool.Parent == bp then
             char.Humanoid:EquipTool(tool)
             task.wait(.1)
         end
@@ -256,12 +242,12 @@ Tabs.Belt:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 DOJO BELT (ORANGE) — NEW TAB
+-- 🧩 DOJO BELT (ORANGE) — TP GHẾ 1 + GHẾ 2
 ------------------------------------------------------------
-
+-- GHẾ 1
 Tabs.Orange:AddButton({
     Title = "TP Ogren Belt",
-    Description = "Move → Ogren Belt Position",
+    Description = "Move → Ogren Belt",
     Callback = function()
         toposition(CFrame.new(
             -12591.05859375,
@@ -271,8 +257,21 @@ Tabs.Orange:AddButton({
     end
 })
 
+-- GHẾ 2
+Tabs.Orange:AddButton({
+    Title = "TP Ogren Belt (Ghế 2)",
+    Description = "Move → Ogren Belt Seat 2",
+    Callback = function()
+        toposition(CFrame.new(
+            -12602.3125,
+            337.6280212402344,
+            -7544.7568359375
+        ))
+    end
+})
+
 ------------------------------------------------------------
--- 🧩 TELEPORT TAB — 3 MAIN LOCATIONS
+-- 🧩 TELEPORT — 3 MAIN LOCATIONS
 ------------------------------------------------------------
 Tabs.Teleport:AddButton({
     Title = "Mansion (Sea 3)",
