@@ -22,13 +22,14 @@ local Window = Fluent:CreateWindow({
 -- 🧩 CREATE TABS
 ------------------------------------------------------------
 local Tabs = {
-    Shop = Window:AddTab({ Title = "Shop" }),
-    Draco = Window:AddTab({ Title = "Draco" }),
-    Teleport = Window:AddTab({ Title = "Teleport" }),
+    Shop      = Window:AddTab({ Title = "Shop" }),
+    Draco     = Window:AddTab({ Title = "Draco" }),
+    Belt      = Window:AddTab({ Title = "Dojo Belt" }), -- TAB MỚI
+    Teleport  = Window:AddTab({ Title = "Teleport" }),
 }
 
 ------------------------------------------------------------
--- 🧩 TWEEN MOVE SYSTEM (MOVE LIKE BUY MELEE)
+-- 🧩 TWEEN MOVE FUNCTION
 ------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -39,17 +40,17 @@ local SPEED = 260
 local function toposition(Pos, onDone)
     local plr = Players.LocalPlayer
     local char = plr.Character or plr.CharacterAdded:Wait()
-    local hrp = char:WaitForChild("HumanoidRootPart")
-    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp  = char:WaitForChild("HumanoidRootPart")
+    local hum  = char:FindFirstChildOfClass("Humanoid")
 
     local root = char:FindFirstChild("Root")
     if not root then
         root = Instance.new("Part")
         root.Name = "Root"
-        root.Size = Vector3.new(20, 0.5, 20)
+        root.Anchored = true
         root.Transparency = 1
         root.CanCollide = false
-        root.Anchored = true
+        root.Size = Vector3.new(20, 0.5, 20)
         root.CFrame = hrp.CFrame
         root.Parent = char
     end
@@ -64,7 +65,7 @@ local function toposition(Pos, onDone)
         if onDone then onDone() end
         return
     end
-
+    
     local tween = TweenService:Create(root, info, { CFrame = Pos })
     tween:Play()
 
@@ -82,24 +83,19 @@ local function toposition(Pos, onDone)
 end
 
 ------------------------------------------------------------
--- 🧩 SHOP — BUY SHARKMAN KARATE
+-- 🧩 SHOP — BUY SHARKMAN
 ------------------------------------------------------------
 local sharkPos = CFrame.new(-4972.2798, 314.5509, -3221.4897)
-
-local function buySharkman()
-    pcall(function()
-        ReplicatedStorage.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
-    end)
-    print("[Sharkman] Bought successfully!")
-end
 
 Tabs.Shop:AddButton({
     Title = "Buy Sharkman Karate",
     Description = "Move → Buy Sharkman",
     Callback = function()
         toposition(sharkPos, function()
-            task.wait(0.25)
-            buySharkman()
+            task.wait(.2)
+            pcall(function()
+                ReplicatedStorage.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
+            end)
         end)
     end
 })
@@ -109,20 +105,15 @@ Tabs.Shop:AddButton({
 ------------------------------------------------------------
 local dragonPos = CFrame.new(5776.378, 1209.483, 805.036)
 
-local function buyDragonTalon()
-    pcall(function()
-        ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
-    end)
-    print("[Dragon Talon] Bought successfully!")
-end
-
 Tabs.Shop:AddButton({
     Title = "Buy Dragon Talon",
     Description = "Move → Buy Dragon Talon",
     Callback = function()
         toposition(dragonPos, function()
-            task.wait(0.25)
-            buyDragonTalon()
+            task.wait(.2)
+            pcall(function()
+                ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
+            end)
         end)
     end
 })
@@ -131,127 +122,59 @@ Tabs.Shop:AddButton({
 -- 🧩 DRACO — AUTO DOJO QUEST
 ------------------------------------------------------------
 local dojoPos = CFrame.new(5865.9468, 1208.5947, 872.6288)
-local RF = game.ReplicatedStorage.Modules.Net["RF/InteractDragonQuest"]
+local RF = ReplicatedStorage.Modules.Net["RF/InteractDragonQuest"]
 
 local function dojoRemote(cmd)
-    return pcall(function()
+    pcall(function()
         RF:InvokeServer({ NPC = "Dojo Trainer", Command = cmd })
     end)
 end
 
-local function getQuestState()
-    return Players.LocalPlayer.Data.Dojos.Quest.Value
-end
-
 local function autoDojo()
-    print("======== DOJO AUTO QUEST ========")
-    print("[System] Moving to Dojo...")
-
     toposition(dojoPos, function()
-        task.wait(0.3)
+        task.wait(.3)
+        local q = Players.LocalPlayer.Data.Dojos.Quest.Value
 
-        local state = getQuestState()
-        print("[Dojo] State:", state)
-
-        if state == "None" then
+        if q == "None" then
             dojoRemote("RequestQuest")
-            print("[Dojo] Quest Accepted!")
-
-        elseif state == "Complete" then
+        elseif q == "Complete" then
             dojoRemote("CompleteQuest")
-            print("[Dojo] Quest Submitted!")
-
         else
-            print("[Dojo] Quest in progress…")
+            print("[Dojo] Quest đang làm…")
         end
-
-        print("=================================")
     end)
 end
 
 Tabs.Draco:AddButton({
     Title = "Auto Dojo Quest",
-    Description = "Move → Auto Accept / Complete Quest",
-    Callback = function()
-        autoDojo()
-    end
+    Description = "Auto nhận/trả quest",
+    Callback = autoDojo
 })
 
 ------------------------------------------------------------
 -- 🧩 DRACO — LEARN TETHER
 ------------------------------------------------------------
-local tetherPos = CFrame.new(5776.378, 1209.483, 805.036)
-
-local function learnTether()
-    local ok, err = pcall(function()
-        RF:InvokeServer({ NPC = "Dragon Wizard", Command = "LearnTether" })
-    end)
-
-    if ok then
-        warn("[Tether] Learned successfully!")
-    else
-        warn("[Tether] Error:", err)
-    end
-end
-
 Tabs.Draco:AddButton({
     Title = "Learn Tether",
-    Description = "Move → Learn Tether",
+    Description = "Học Tether ngay",
     Callback = function()
-        toposition(tetherPos, function()
-            task.wait(0.25)
-            learnTether()
+        toposition(dragonPos, function()
+            task.wait(.2)
+            pcall(function()
+                RF:InvokeServer({ NPC = "Dragon Wizard", Command = "LearnTether" })
+            end)
         end)
     end
 })
 
 ------------------------------------------------------------
--- 🧩 TELEPORT — ALL BUTTONS (MANSION → FRUIT)
+-- 🧩 BELT TAB — CLOSET, PICKUP, DROP FRUIT
 ------------------------------------------------------------
 
--- Mansion
-Tabs.Teleport:AddButton({
-    Title = "Mansion (Sea 3)",
-    Description = "Move to Mansion (same as buy melee)",
-    Callback = function()
-        toposition(CFrame.new(
-            -12549.6630859375,
-            337.4825744628906,
-            -7531.4306640625
-        ))
-    end
-})
-
--- Hydra Blue Belt 1
-Tabs.Teleport:AddButton({
-    Title = "Hydra (Blue Belt 1)",
-    Description = "Move to Hydra (same as buy melee)",
-    Callback = function()
-        toposition(CFrame.new(
-            5817.47705078125,
-            1208.5947265625,
-            904.3050537109375
-        ))
-    end
-})
-
--- Hydra Blue Belt 2
-Tabs.Teleport:AddButton({
-    Title = "Hydra (Blue Belt 2)",
-    Description = "Move to Hydra (same as buy melee)",
-    Callback = function()
-        toposition(CFrame.new(
-            5816.978515625,
-            1208.5947265625,
-            898.1947631835938
-        ))
-    end
-})
-
 -- Closet Fruit
-Tabs.Teleport:AddButton({
+Tabs.Belt:AddButton({
     Title = "Closet Fruit",
-    Description = "Move → Fruit Storage",
+    Description = "Move → Fruit Closet",
     Callback = function()
         toposition(CFrame.new(
             -12550.0712890625,
@@ -261,8 +184,8 @@ Tabs.Teleport:AddButton({
     end
 })
 
--- Lụm Fruit gần nhất
-Tabs.Teleport:AddButton({
+-- Lụm Fruit Gần Nhất
+Tabs.Belt:AddButton({
     Title = "Lụm Fruit Gần Nhất",
     Description = "Move → Pickup nearest fruit",
     Callback = function()
@@ -272,8 +195,7 @@ Tabs.Teleport:AddButton({
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
 
-        local nearest = nil
-        local minDist = math.huge
+        local nearest, minDist = nil, math.huge
 
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("Tool") and obj:FindFirstChild("Handle") then
@@ -286,82 +208,108 @@ Tabs.Teleport:AddButton({
         end
 
         if not nearest then
-            warn("[Fruit] Không tìm thấy trái.")
+            warn("[Fruit] Không thấy trái.")
             return
         end
 
-        print("[Fruit] Found:", nearest.Name)
-
         toposition(nearest.Handle.CFrame, function()
-            task.wait(0.2)
+            task.wait(.1)
             pcall(function()
                 firetouchinterest(hrp, nearest.Handle, 0)
                 task.wait()
                 firetouchinterest(hrp, nearest.Handle, 1)
             end)
-            print("[Fruit] Lụm thành công:", nearest.Name)
         end)
     end
 })
 
 -- Drop Fruit
-Tabs.Teleport:AddButton({
+Tabs.Belt:AddButton({
     Title = "Drop Fruit",
     Description = "Thả trái đang giữ",
     Callback = function()
 
         local plr = Players.LocalPlayer
         local char = plr.Character
-        local backpack = plr.Backpack
+        local bp = plr.Backpack
 
-        -- Ưu tiên trái đang cầm
-        local tool = char:FindFirstChildWhichIsA("Tool")
-
-        -- Nếu không có → tìm trong Backpack
-        if not tool then
-            tool = backpack:FindFirstChildWhichIsA("Tool")
-        end
+        local tool = char:FindFirstChildWhichIsA("Tool") or 
+                     bp:FindFirstChildWhichIsA("Tool")
 
         if not tool then
-            warn("[Fruit] Bạn không có trái để drop.")
+            warn("[Fruit] Không có trái để drop.")
             return
         end
 
-        -- Nếu trái nằm trong balo → equip trước rồi drop
-        if tool.Parent == backpack then
+        if tool.Parent == bp then
             char.Humanoid:EquipTool(tool)
-            task.wait(0.1)
+            task.wait(.1)
         end
 
-        -- Drop fruit
         pcall(function()
             tool.Parent = workspace
             tool.Handle.CFrame = char.HumanoidRootPart.CFrame
         end)
-
-        print("[Fruit] Đã drop trái:", tool.Name)
     end
 })
 
 ------------------------------------------------------------
--- 🧩 UI TOGGLE BUTTON (CAT HUB LOGO)
+-- 🧩 TELEPORT TAB — 3 TELEPORT
+------------------------------------------------------------
+
+Tabs.Teleport:AddButton({
+    Title = "Mansion (Sea 3)",
+    Description = "Move to Mansion",
+    Callback = function()
+        toposition(CFrame.new(
+            -12549.6630859375,
+            337.4825744628906,
+            -7531.4306640625
+        ))
+    end
+})
+
+Tabs.Teleport:AddButton({
+    Title = "Hydra (Blue Belt 1)",
+    Description = "Move to Hydra B1",
+    Callback = function()
+        toposition(CFrame.new(
+            5817.47705078125,
+            1208.5947265625,
+            904.3050537109375
+        ))
+    end
+})
+
+Tabs.Teleport:AddButton({
+    Title = "Hydra (Blue Belt 2)",
+    Description = "Move to Hydra B2",
+    Callback = function()
+        toposition(CFrame.new(
+            5816.978515625,
+            1208.5947265625,
+            898.1947631835938
+        ))
+    end
+})
+
+------------------------------------------------------------
+-- 🧩 UI TOGGLE BUTTON (CAT HUB ICON)
 ------------------------------------------------------------
 local ToggleGui = Instance.new("ScreenGui")
 ToggleGui.Parent = game.CoreGui
 
-local ToggleBtn = Instance.new("ImageButton")
-ToggleBtn.Parent = ToggleGui
-ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-ToggleBtn.Position = UDim2.new(0.12, 0, 0.09, 0)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
-ToggleBtn.Image = "rbxassetid://14997704044"
+local Btn = Instance.new("ImageButton", ToggleGui)
+Btn.Size = UDim2.new(0,50,0,50)
+Btn.Position = UDim2.new(0.12,0,0.09,0)
+Btn.Image = "rbxassetid://14997704044"
+Btn.BackgroundColor3 = Color3.fromRGB(255,255,255)
 
-local UICorner = Instance.new("UICorner", ToggleBtn)
-UICorner.CornerRadius = UDim.new(0,10)
+Instance.new("UICorner", Btn).CornerRadius = UDim.new(0,10)
 
-ToggleBtn.MouseButton1Click:Connect(function()
+Btn.MouseButton1Click:Connect(function()
     local vim = game:GetService("VirtualInputManager")
     vim:SendKeyEvent(true, Enum.KeyCode.End, false, game)
-    task.wait(0.05)
+    task.wait(.05)
     vim:SendKeyEvent(false, Enum.KeyCode.End, false, game)
 end)
