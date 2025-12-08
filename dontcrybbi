@@ -19,7 +19,7 @@ local Window = Fluent:CreateWindow({
 })
 
 ------------------------------------------------------------
--- 🧩 CREATE TABS
+-- 🧩 CREATE TABS (KHÔNG TẠO LẠI TELEPORT)
 ------------------------------------------------------------
 local Tabs = {
     Shop = Window:AddTab({ Title = "Shop" }),
@@ -28,7 +28,7 @@ local Tabs = {
 }
 
 ------------------------------------------------------------
--- 🧩 SERVICES + TWEEN SYSTEM (MOVE LIKE BUY MELEE)
+-- 🧩 TWEEN MOVE SYSTEM (MOVE LIKE BUY MELEE)
 ------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -171,7 +171,7 @@ end
 
 Tabs.Draco:AddButton({
     Title = "Auto Dojo Quest",
-    Description = "Move → Auto Accept/Complete Quest",
+    Description = "Move → Auto Accept / Complete Quest",
     Callback = function()
         autoDojo()
     end
@@ -206,7 +206,7 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 TELEPORT TAB — MOVE EXACT LIKE BUY MELEE
+-- 🧩 TELEPORT — MOVE LIKE BUY MELEE (3 NÚT)
 ------------------------------------------------------------
 
 -- Mansion
@@ -225,7 +225,7 @@ Tabs.Teleport:AddButton({
 -- Hydra Blue Belt 1
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt 1)",
-    Description = "Move to Hydra Blue Belt (same as buy melee)",
+    Description = "Move to Hydra (same as buy melee)",
     Callback = function()
         toposition(CFrame.new(
             5817.47705078125,
@@ -235,10 +235,10 @@ Tabs.Teleport:AddButton({
     end
 })
 
--- Hydra Blue Belt 2 (MỚI THÊM)
+-- Hydra Blue Belt 2
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt 2)",
-    Description = "Move to Hydra Blue Belt 2 (same as buy melee)",
+    Description = "Move to Hydra (same as buy melee)",
     Callback = function()
         toposition(CFrame.new(
             5816.978515625,
