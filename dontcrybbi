@@ -27,7 +27,7 @@ local Tabs = {
 }
 
 ------------------------------------------------------------
--- 🧩 SERVICES + GLOBALS
+-- 🧩 SERVICES + TWEEN
 ------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -35,9 +35,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SPEED = 260
 
-------------------------------------------------------------
--- 🧩 UNIVERSAL TWEEN FUNCTION
-------------------------------------------------------------
 local function toposition(Pos, onDone)
     local plr = Players.LocalPlayer
     local char = plr.Character or plr.CharacterAdded:Wait()
@@ -52,6 +49,7 @@ local function toposition(Pos, onDone)
         root.Anchored = true
         root.Transparency = 1
         root.CanCollide = false
+        root.CFrame = hrp.CFrame
         root.Parent = char
     end
 
@@ -129,20 +127,14 @@ Tabs.Shop:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 DRACO — AUTO CHECK / ACCEPT / COMPLETE QUEST
+-- 🧩 DRACO — AUTO DOJO QUEST (CHECK → ACCEPT / COMPLETE)
 ------------------------------------------------------------
 local dojoPos = CFrame.new(5865.9468, 1208.5947, 872.6288)
 local RF = game.ReplicatedStorage.Modules.Net["RF/InteractDragonQuest"]
 
 local function dojoRemote(cmd)
-    local args = {
-        [1] = {
-            NPC = "Dojo Trainer",
-            Command = cmd
-        }
-    }
     return pcall(function()
-        RF:InvokeServer(unpack(args))
+        RF:InvokeServer({ NPC = "Dojo Trainer", Command = cmd })
     end)
 end
 
@@ -156,22 +148,22 @@ local function autoDojo()
 
     toposition(dojoPos, function()
         task.wait(0.3)
-
+        
         local state = getQuestState()
         print("[Dojo] Quest State:", state)
 
         if state == "None" then
-            print("[Dojo] Chưa có quest → Nhận mới...")
+            print("[Dojo] Nhận quest...")
             dojoRemote("RequestQuest")
-            print("[Dojo] Đã nhận quest!")
+            print("[Dojo] Quest Accepted!")
 
         elseif state == "Complete" then
-            print("[Dojo] Quest hoàn thành → Trả quest...")
+            print("[Dojo] Trả quest...")
             dojoRemote("CompleteQuest")
-            print("[Dojo] Đã trả quest!")
+            print("[Dojo] Quest Submitted!")
 
         else
-            print("[Dojo] Đang làm quest → Không làm gì.")
+            print("[Dojo] Quest đang làm → Không làm gì.")
         end
 
         print("======================================")
@@ -180,26 +172,57 @@ end
 
 Tabs.Draco:AddButton({
     Title = "Auto Dojo Quest",
-    Description = "Tele → Kiểm tra → Nhận hoặc Trả quest tự động",
+    Description = "Tele → Check → Nhận/Trả quest tự động",
     Callback = function()
         autoDojo()
     end
 })
 
 ------------------------------------------------------------
--- 🧩 TOGGLE UI BUTTON (CAT HUB LOGO CŨ – FIXED)
+-- 🧩 DRACO — LEARN TETHER
+------------------------------------------------------------
+local tetherPos = CFrame.new(5776.378, 1209.483, 805.036)
+
+local function learnTether()
+    local args = { NPC = "Dragon Wizard", Command = "LearnTether" }
+
+    local ok, err = pcall(function()
+        RF:InvokeServer(args)
+    end)
+
+    if ok then
+        warn("[Tether] Learn Success!")
+    else
+        warn("[Tether] Error:", err)
+    end
+end
+
+Tabs.Draco:AddButton({
+    Title = "Learn Tether",
+    Description = "Teleport → NPC Dragon Wizard → Learn Tether",
+    Callback = function()
+        toposition(tetherPos, function()
+            task.wait(0.25)
+            learnTether()
+        end)
+    end
+})
+
+------------------------------------------------------------
+-- 🧩 UI TOGGLE (CAT HUB LOGO CŨ – ĐÃ FIX)
 ------------------------------------------------------------
 local ToggleGui = Instance.new("ScreenGui")
 ToggleGui.Parent = game.CoreGui
 
 local ToggleBtn = Instance.new("ImageButton")
 ToggleBtn.Parent = ToggleGui
-ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-ToggleBtn.Position = UDim2.new(0.12, 0, 0.09, 0)
+ToggleBtn.Size = UDim2.new(0,50,0,50)
+ToggleBtn.Position = UDim2.new(0.12,0,0.09,0)
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
-ToggleBtn.Image = "rbxassetid://14997704044"
+ToggleBtn.Image = "rbxassetid://14997704044" -- cat hub old logo
 
 local UICorner = Instance.new("UICorner", ToggleBtn)
+UICorner.CornerRadius = UDim.new(0,10)
 
 ToggleBtn.MouseButton1Click:Connect(function()
     local vim = game:GetService("VirtualInputManager")
