@@ -2,7 +2,7 @@ repeat task.wait() until game:IsLoaded()
 repeat task.wait() until game.Players and game.Players.LocalPlayer
 
 ------------------------------------------------------------
--- 🧩 LOAD UI FLUENT
+-- 🧩 LOAD FLUENT UI
 ------------------------------------------------------------
 local Fluent = loadstring(game:HttpGet(
     "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
@@ -15,18 +15,19 @@ local Window = Fluent:CreateWindow({
     Size = UDim2.fromOffset(530, 350),
     Acrylic = false,
     Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.End   -- toggle UI bằng END
+    MinimizeKey = Enum.KeyCode.End
 })
 
 ------------------------------------------------------------
--- 🧩 TAB SHOP
+-- 🧩 CREATE TABS
 ------------------------------------------------------------
 local Tabs = {
     Shop = Window:AddTab({ Title = "Shop" }),
+    Draco = Window:AddTab({ Title = "Draco" }), 
 }
 
 ------------------------------------------------------------
--- 🧩 TWEEN FUNCTION CHUNG
+-- 🧩 TWEEN FUNCTION
 ------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -43,12 +44,10 @@ local function toposition(Pos, onDone)
     local root = char:FindFirstChild("Root")
     if not root then
         root = Instance.new("Part")
-        root.Size = Vector3.new(20, 0.5, 20)
         root.Name = "Root"
+        root.Size = Vector3.new(20,0.5,20)
         root.Anchored = true
         root.Transparency = 1
-        root.CanCollide = false
-        root.CFrame = hrp.CFrame
         root.Parent = char
     end
 
@@ -83,9 +82,8 @@ local function toposition(Pos, onDone)
 end
 
 ------------------------------------------------------------
--- 🧩 BUY SHARKMAN KARATE
+-- 🧩 SHOP TAB — BUY SHARKMAN KARATE
 ------------------------------------------------------------
-
 local sharkPos = CFrame.new(-4972.2798, 314.5509, -3221.4897)
 
 local function buySharkman()
@@ -97,58 +95,110 @@ end
 
 Tabs.Shop:AddButton({
     Title = "Buy Sharkman Karate",
-    Description = "Tween → Buy Sharkman Karate",
+    Description = "Tween → Mua Sharkman Karate",
     Callback = function()
         toposition(sharkPos, function()
-            task.wait(0.2)
+            task.wait(0.25)
             buySharkman()
         end)
     end
 })
 
 ------------------------------------------------------------
--- 🧩 BUY DRAGON TALON
+-- 🧩 SHOP TAB — BUY DRAGON TALON
 ------------------------------------------------------------
-
 local dragonPos = CFrame.new(5776.378, 1209.483, 805.036)
 
 local function buyDragonTalon()
     pcall(function()
         ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
     end)
-    warn("[DragonTalon] Mua thành công!")
+    warn("[Dragon Talon] Mua thành công!")
 end
 
 Tabs.Shop:AddButton({
     Title = "Buy Dragon Talon",
-    Description = "Tween → Buy Dragon Talon",
+    Description = "Tween → Mua Dragon Talon",
     Callback = function()
         toposition(dragonPos, function()
-            task.wait(0.2)
+            task.wait(0.25)
             buyDragonTalon()
         end)
     end
 })
 
 ------------------------------------------------------------
--- 🧩 ICON BẬT/TẮT UI (Cat Hub Logo Cũ) — FIX KHÔNG BẬT LẠI ĐƯỢC
+-- 🧩 DRACO TAB — TALK TO DOJO TRAINER
 ------------------------------------------------------------
+local function talkDojo()
+    local args = {
+        [1] = { NPC = "Dojo Trainer", Command = "RequestQuest" }
+    }
 
+    pcall(function()
+        game:GetService("ReplicatedStorage")
+        .Modules.Net["RF/InteractDragonQuest"]:InvokeServer(unpack(args))
+    end)
+
+    warn("[Dojo] Đã nói chuyện với Dojo Trainer")
+end
+
+Tabs.Draco:AddButton({
+    Title = "Talk to Dojo Trainer",
+    Description = "Mở hội thoại Dojo Trainer",
+    Callback = function()
+        talkDojo()
+    end
+})
+
+------------------------------------------------------------
+-- 🧩 DRACO TAB — SHOW BELT HIỆN TẠI + BELT TIẾP THEO
+------------------------------------------------------------
+local BeltNames = {
+    [0] = "White",
+    [1] = "Yellow",
+    [2] = "Orange",
+    [3] = "Green",
+    [4] = "Blue",
+    [5] = "Purple",
+    [6] = "Red",
+    [7] = "Black"
+}
+
+local function getCurrentBelt()
+    local beltVal = Players.LocalPlayer.Data.Dojos.Belt.Value
+    local current = BeltNames[beltVal] or "Unknown"
+    local nextBelt = BeltNames[beltVal + 1] or "MAX"
+    return current, nextBelt
+end
+
+local cur, nxt = getCurrentBelt()
+
+local BeltLabel = Tabs.Draco:AddParagraph({
+    Title = "Dojo Belt",
+    Content = "Current: " .. cur .. "\nNext: " .. nxt
+})
+
+task.spawn(function()
+    while task.wait(1) do
+        local a, b = getCurrentBelt()
+        BeltLabel:SetDesc("Current: " .. a .. "\nNext: " .. b)
+    end
+end)
+
+------------------------------------------------------------
+-- 🧩 TOGGLE ICON (CAT HUB LOGO CŨ) — FIX KHÔNG BẬT LẠI ĐƯỢC UI
+------------------------------------------------------------
 local ToggleGui = Instance.new("ScreenGui")
-ToggleGui.Name = "ToggleUI"
 ToggleGui.Parent = game.CoreGui
 ToggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 local ToggleBtn = Instance.new("ImageButton")
-ToggleBtn.Name = "ToggleButton"
 ToggleBtn.Parent = ToggleGui
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-ToggleBtn.BorderSizePixel = 0
-ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-ToggleBtn.Position = UDim2.new(0.12, 0, 0.09, 0)
-
--- ⭐ Logo Cat Hub cũ
-ToggleBtn.Image = "rbxassetid://14997704044"
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+ToggleBtn.Size = UDim2.new(0,50,0,50)
+ToggleBtn.Position = UDim2.new(0.12,0,0.09,0)
+ToggleBtn.Image = "rbxassetid://14997704044" -- Cat Hub Logo
 
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0,10)
@@ -156,15 +206,7 @@ UICorner.Parent = ToggleBtn
 
 ToggleBtn.MouseButton1Click:Connect(function()
     local vim = game:GetService("VirtualInputManager")
-
-    -- Nhấn END
     vim:SendKeyEvent(true, Enum.KeyCode.End, false, game)
     task.wait(0.05)
-
-    -- Nhả END
     vim:SendKeyEvent(false, Enum.KeyCode.End, false, game)
 end)
-
-------------------------------------------------------------
--- 🎉 DONE — MỌI THỨ GỘP HOÀN CHỈNH
-------------------------------------------------------------
