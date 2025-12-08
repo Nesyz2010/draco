@@ -42,14 +42,13 @@ local function toposition(Pos, onDone)
     local hrp = char:WaitForChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
 
-    -- Root part
     local root = char:FindFirstChild("Root")
     if not root then
         root = Instance.new("Part")
         root.Name = "Root"
         root.Size = Vector3.new(20, 0.5, 20)
-        root.Transparency = 1
         root.Anchored = true
+        root.Transparency = 1
         root.CanCollide = false
         root.CFrame = hrp.CFrame
         root.Parent = char
@@ -158,10 +157,12 @@ local function autoDojo()
             print("[Dojo] Accepting Quest...")
             dojoRemote("RequestQuest")
             print("[Dojo] Quest Accepted!")
+
         elseif state == "Complete" then
             print("[Dojo] Submitting Quest...")
             dojoRemote("CompleteQuest")
             print("[Dojo] Quest Submitted!")
+
         else
             print("[Dojo] Quest in progress — No action.")
         end
@@ -209,7 +210,7 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 TELEPORT TAB — ONLY 2 LOCATIONS
+-- 🧩 TELEPORT TAB — ONLY 2 LOCATIONS (HYDRA BYPASS)
 ------------------------------------------------------------
 local function simpleTP(cf)
     local hrp = Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
@@ -225,12 +226,12 @@ Tabs.Teleport:AddButton({
     end
 })
 
--- Hydra Blue Belt Zone
+-- Hydra (Blue Belt) — USE TWEEN BYPASS
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt)",
-    Description = "Teleport to Hydra Blue Belt Area",
+    Description = "Tween bypass teleport (anti-rollback)",
     Callback = function()
-        simpleTP(CFrame.new(5817.47705078125, 1208.5947265625, 904.3050537109375))
+        toposition(CFrame.new(5817.47705078125, 1208.5947265625, 904.3050537109375))
     end
 })
 
