@@ -1,0 +1,294 @@
+repeat task.wait() until game:IsLoaded()
+repeat task.wait() until game.Players and game.Players.LocalPlayer
+
+------------------------------------------------------------
+-- LOAD FLUENT UI
+------------------------------------------------------------
+local Fluent = loadstring(game:HttpGet(
+    "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
+))()
+
+local Window = Fluent:CreateWindow({
+    Title = "Draco Hub",
+    SubTitle = "HoanqLamDepTrai",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(530, 350),
+    Acrylic = false,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.End
+})
+
+------------------------------------------------------------
+-- CREATE TABS (ĐÚNG THỨ TỰ ĐỂ TRÁNH LỖI)
+------------------------------------------------------------
+local Tabs = {
+    Shop      = Window:AddTab({ Title = "Shop" }),
+    Draco     = Window:AddTab({ Title = "Draco" }),
+    Belt      = Window:AddTab({ Title = "Dojo Belt" }),
+    Orange    = Window:AddTab({ Title = "Dojo Belt (Orange)" }), -- ⭐ TAB GHẾ
+    Teleport  = Window:AddTab({ Title = "Teleport" }),
+}
+
+------------------------------------------------------------
+-- TWEEN MOVE FUNCTION
+------------------------------------------------------------
+local TweenService = game:GetService("TweenService")
+local Players      = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SPEED = 260
+
+local function toposition(Pos, onDone)
+    local lp = Players.LocalPlayer
+    local char = lp.Character or lp.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+
+    local root = char:FindFirstChild("Root")
+    if not root then
+        root = Instance.new("Part")
+        root.Name = "Root"
+        root.Anchored = true
+        root.Transparency = 1
+        root.CanCollide = false
+        root.Size = Vector3.new(20, .5, 20)
+        root.CFrame = hrp.CFrame
+        root.Parent = char
+    end
+
+    if hum and hum.Sit then hum.Sit = false end
+
+    local dist = (Pos.Position - hrp.Position).Magnitude
+    local tween = TweenService:Create(root, TweenInfo.new(dist / SPEED, Enum.EasingStyle.Linear), {CFrame = Pos})
+    tween:Play()
+
+    task.spawn(function()
+        while tween.PlaybackState == Enum.PlaybackState.Playing do
+            task.wait()
+            hrp.CFrame = root.CFrame
+        end
+    end)
+
+    tween.Completed:Once(function()
+        hrp.CFrame = root.CFrame
+        if onDone then onDone() end
+    end)
+end
+
+------------------------------------------------------------
+-- SHOP TAB
+------------------------------------------------------------
+Tabs.Shop:AddButton({
+    Title = "Buy Sharkman Karate",
+    Callback = function()
+        toposition(CFrame.new(-4972.2798, 314.5509, -3221.4897), function()
+            task.wait(.25)
+            pcall(function()
+                ReplicatedStorage.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
+            end)
+        end)
+    end
+})
+
+Tabs.Shop:AddButton({
+    Title = "Buy Dragon Talon",
+    Callback = function()
+        toposition(CFrame.new(5776.378, 1209.483, 805.036), function()
+            task.wait(.25)
+            pcall(function()
+                ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
+            end)
+        end)
+    end
+})
+
+------------------------------------------------------------
+-- DRACO TAB
+------------------------------------------------------------
+local dojoPos = CFrame.new(5865.9468, 1208.5947, 872.6288)
+local RF = ReplicatedStorage.Modules.Net["RF/InteractDragonQuest"]
+
+local function dojoRemote(cmd)
+    pcall(function()
+        RF:InvokeServer({ NPC = "Dojo Trainer", Command = cmd })
+    end)
+end
+
+Tabs.Draco:AddButton({
+    Title = "Auto Dojo Quest",
+    Callback = function()
+        toposition(dojoPos, function()
+            task.wait(.3)
+            local q = Players.LocalPlayer.Data.Dojos.Quest.Value
+            if q == "None" then dojoRemote("RequestQuest")
+            elseif q == "Complete" then dojoRemote("CompleteQuest")
+            end
+        end)
+    end
+})
+
+Tabs.Draco:AddButton({
+    Title = "Learn Tether",
+    Callback = function()
+        toposition(CFrame.new(5776.378, 1209.483, 805.036), function()
+            task.wait(.25)
+            pcall(function()
+                RF:InvokeServer({ NPC = "Dragon Wizard", Command = "LearnTether" })
+            end)
+        end)
+    end
+})
+
+------------------------------------------------------------
+-- DOJO BELT TAB (FRUIT)
+------------------------------------------------------------
+Tabs.Belt:AddButton({
+    Title = "Closet Fruit",
+    Callback = function()
+        toposition(CFrame.new(-12550.0712890625, 337.4825744628906, -7485.72216796875))
+    end
+})
+
+Tabs.Belt:AddButton({
+    Title = "Lụm Fruit Gần Nhất",
+    Callback = function()
+        local lp = Players.LocalPlayer
+        local char = lp.Character
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+
+        local nearest, minDist = nil, math.huge
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Tool") and obj:FindFirstChild("Handle") then
+                local d = (obj.Handle.Position - hrp.Position).Magnitude
+                if d < minDist then
+                    minDist = d
+                    nearest = obj
+                end
+            end
+        end
+        if not nearest then return end
+
+        toposition(nearest.Handle.CFrame, function()
+            task.wait(.1)
+            firetouchinterest(hrp, nearest.Handle, 0)
+            task.wait()
+            firetouchinterest(hrp, nearest.Handle, 1)
+        end)
+    end
+})
+
+Tabs.Belt:AddButton({
+    Title = "Drop Fruit",
+    Callback = function()
+        local plr = Players.LocalPlayer
+        local char = plr.Character
+        local bp = plr.Backpack
+
+        local tool = char:FindFirstChildWhichIsA("Tool") or bp:FindFirstChildWhichIsA("Tool")
+        if not tool then return end
+
+        if tool.Parent == bp then
+            char.Humanoid:EquipTool(tool)
+            task.wait(.1)
+        end
+
+        tool.Parent = workspace
+        tool.Handle.CFrame = char.HumanoidRootPart.CFrame
+    end
+})
+
+------------------------------------------------------------
+-- DOJO BELT (ORANGE) – ĐÚNG TỌA ĐỘ 6 GHẾ
+------------------------------------------------------------
+
+-- GHẾ 1
+Tabs.Orange:AddButton({
+    Title = "TP Ogren Belt (Ghế 1)",
+    Callback = function()
+        toposition(CFrame.new(-12591.05859375, 337.62872314453125, -7544.7568359375))
+    end
+})
+
+-- GHẾ 2
+Tabs.Orange:AddButton({
+    Title = "TP Ogren Belt (Ghế 2)",
+    Callback = function()
+        toposition(CFrame.new(-12602.3125, 337.6280212402344, -7544.7568359375))
+    end
+})
+
+-- GHẾ 3
+Tabs.Orange:AddButton({
+    Title = "TP Ogren Belt (Ghế 3)",
+    Callback = function()
+        toposition(CFrame.new(-12591.05859375, 337.62872314453125, -7556.7568359375))
+    end
+})
+
+-- GHẾ 4
+Tabs.Orange:AddButton({
+    Title = "TP Ogren Belt (Ghế 4)",
+    Callback = function()
+        toposition(CFrame.new(-12602.3125, 337.6280212402344, -7556.7568359375))
+    end
+})
+
+-- GHẾ 5
+Tabs.Orange:AddButton({
+    Title = "TP Ogren Belt (Ghế 5)",
+    Callback = function()
+        toposition(CFrame.new(-12591.05859375, 337.62872314453125, -7568.7568359375))
+    end
+})
+
+-- GHẾ 6
+Tabs.Orange:AddButton({
+    Title = "TP Ogren Belt (Ghế 6)",
+    Callback = function()
+        toposition(CFrame.new(-12602.3125, 337.6280212402344, -7568.7568359375))
+    end
+})
+
+------------------------------------------------------------
+-- TELEPORT TAB
+------------------------------------------------------------
+Tabs.Teleport:AddButton({
+    Title = "Mansion",
+    Callback = function()
+        toposition(CFrame.new(-12549.6630859375, 337.4825744628906, -7531.4306640625))
+    end
+})
+
+Tabs.Teleport:AddButton({
+    Title = "Hydra (Blue Belt 1)",
+    Callback = function()
+        toposition(CFrame.new(5817.47705078125, 1208.5947265625, 904.3050537109375))
+    end
+})
+
+Tabs.Teleport:AddButton({
+    Title = "Hydra (Blue Belt 2)",
+    Callback = function()
+        toposition(CFrame.new(5816.978515625, 1208.5947265625, 898.1947631835938))
+    end
+})
+
+------------------------------------------------------------
+-- UI TOGGLE BUTTON
+------------------------------------------------------------
+local ToggleGui = Instance.new("ScreenGui", game.CoreGui)
+local Btn = Instance.new("ImageButton", ToggleGui)
+
+Btn.Size = UDim2.new(0, 50, 0, 50)
+Btn.Position = UDim2.new(0.12, 0, 0.09, 0)
+Btn.Image = "rbxassetid://14997704044"
+Btn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+
+local corner = Instance.new("UICorner", Btn)
+corner.CornerRadius = UDim.new(0, 10)
+
+Btn.MouseButton1Click:Connect(function()
+    local vim = game:GetService("VirtualInputManager")
+    vim:SendKeyEvent(true, Enum.KeyCode.End, false, game)
+    task.wait(.05)
+    vim:SendKeyEvent(false, Enum.KeyCode.End, false, game)
+end)
