@@ -47,9 +47,9 @@ local function toposition(Pos, onDone)
         root = Instance.new("Part")
         root.Name = "Root"
         root.Size = Vector3.new(20, 0.5, 20)
-        root.Anchored = true
         root.Transparency = 1
         root.CanCollide = false
+        root.Anchored = true
         root.CFrame = hrp.CFrame
         root.Parent = char
     end
@@ -149,22 +149,20 @@ local function autoDojo()
 
     toposition(dojoPos, function()
         task.wait(0.3)
-
+        
         local state = getQuestState()
         print("[Dojo] State:", state)
 
         if state == "None" then
-            print("[Dojo] Accepting Quest...")
+            print("[Dojo] Accepting quest...")
             dojoRemote("RequestQuest")
-            print("[Dojo] Quest Accepted!")
-
+            print("[Dojo] Quest accepted!")
         elseif state == "Complete" then
-            print("[Dojo] Submitting Quest...")
+            print("[Dojo] Submitting quest...")
             dojoRemote("CompleteQuest")
-            print("[Dojo] Quest Submitted!")
-
+            print("[Dojo] Quest submitted!")
         else
-            print("[Dojo] Quest in progress — No action.")
+            print("[Dojo] Quest in progress — no action.")
         end
 
         print("=================================")
@@ -173,7 +171,7 @@ end
 
 Tabs.Draco:AddButton({
     Title = "Auto Dojo Quest",
-    Description = "Tele → Auto Check → Auto Accept/Complete",
+    Description = "Tele → Check → Accept/Complete",
     Callback = function()
         autoDojo()
     end
@@ -194,7 +192,7 @@ local function learnTether()
     if ok then
         warn("[Tether] Learned successfully!")
     else
-        warn("[Tether] Failed:", err)
+        warn("[Tether] Error:", err)
     end
 end
 
@@ -210,9 +208,9 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 TELEPORT TAB — ONLY 2 LOCATIONS (HYDRA BYPASS)
+-- 🧩 TELEPORT TAB — 2 DIRECT TELEPORTS
 ------------------------------------------------------------
-local function simpleTP(cf)
+local function directTP(cf)
     local hrp = Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
     hrp.CFrame = cf
 end
@@ -220,18 +218,18 @@ end
 -- Mansion
 Tabs.Teleport:AddButton({
     Title = "Mansion (Sea 3)",
-    Description = "Teleport to Mansion",
+    Description = "Direct Teleport to Mansion",
     Callback = function()
-        simpleTP(CFrame.new(-12549.6630859375, 337.4825744628906, -7531.4306640625))
+        directTP(CFrame.new(-12549.6630859375, 337.4825744628906, -7531.4306640625))
     end
 })
 
--- Hydra (Blue Belt) — USE TWEEN BYPASS
+-- Hydra (Blue Belt Zone)
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt)",
-    Description = "Tween bypass teleport (anti-rollback)",
+    Description = "Direct Teleport to Hydra Blue Belt",
     Callback = function()
-        toposition(CFrame.new(5817.47705078125, 1208.5947265625, 904.3050537109375))
+        directTP(CFrame.new(5817.47705078125, 1208.5947265625, 904.3050537109375))
     end
 })
 
