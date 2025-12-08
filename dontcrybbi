@@ -1,0 +1,130 @@
+repeat task.wait() until game:IsLoaded()
+repeat task.wait() until game.Players and game.Players.LocalPlayer
+
+------------------------------------------------------------
+-- 🧩 LOAD UI FLUENT
+------------------------------------------------------------
+local Fluent = loadstring(game:HttpGet(
+    "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
+))()
+
+local Window = Fluent:CreateWindow({
+    Title = "Cat Hub",
+    SubTitle = "Shop Controller",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(530, 350),
+    Acrylic = false,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.End
+})
+
+------------------------------------------------------------
+-- 🧩 TABS
+------------------------------------------------------------
+local Tabs = {
+    Shop = Window:AddTab({ Title = "Shop" }),
+}
+
+------------------------------------------------------------
+-- 🧩 FUNCTION BUY SHARKMAN KARATE
+------------------------------------------------------------
+
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local SPEED = 260
+local targetPos = CFrame.new(-4972.2798, 314.5509, -3221.4897)
+
+local function buySharkmanKarate()
+    local args = { [1] = "BuySharkmanKarate" }
+    pcall(function()
+        ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(args))
+    end)
+end
+
+local function toposition(Pos, onDone)
+    local plr = Players.LocalPlayer
+    local char = plr.Character or plr.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+
+    local root = char:FindFirstChild("Root")
+    if not root then
+        root = Instance.new("Part")
+        root.Size = Vector3.new(20, 0.5, 20)
+        root.Name = "Root"
+        root.Anchored = true
+        root.Transparency = 1
+        root.CanCollide = false
+        root.CFrame = hrp.CFrame
+        root.Parent = char
+    end
+
+    if hum and hum.Sit then hum.Sit = false end
+
+    local distance = (Pos.Position - hrp.Position).Magnitude
+    local info = TweenInfo.new(distance / SPEED, Enum.EasingStyle.Linear)
+
+    local tween = TweenService:Create(root, info, { CFrame = Pos })
+    tween:Play()
+
+    local running = true
+    task.spawn(function()
+        while running and tween.PlaybackState == Enum.PlaybackState.Playing do
+            task.wait()
+            pcall(function()
+                hrp.CFrame = root.CFrame
+            end)
+        end
+    end)
+
+    tween.Completed:Once(function()
+        running = false
+        hrp.CFrame = root.CFrame
+        if onDone then onDone() end
+    end)
+end
+
+------------------------------------------------------------
+-- 🧩 NÚT TRONG TAB SHOP
+------------------------------------------------------------
+
+Tabs.Shop:AddButton({
+    Title = "Buy Sharkman Karate",
+    Description = "Auto đi tới NPC + mua Sharkman Karate",
+    Callback = function()
+        toposition(targetPos, function()
+            task.wait(0.25)
+            buySharkmanKarate()
+        end)
+    end
+})
+
+------------------------------------------------------------
+-- 🧩 ICON BẬT / TẮT UI (GIỐNG File Bạn Gửi)
+------------------------------------------------------------
+
+local gui = Instance.new("ScreenGui")
+local btn = Instance.new("ImageButton")
+local corner = Instance.new("UICorner")
+
+gui.Name = "ToggleUI"
+gui.Parent = game.CoreGui
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+btn.Name = "ToggleButton"
+btn.Parent = gui
+btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+btn.BorderSizePixel = 0
+btn.Position = UDim2.new(0.12, 0, 0.09, 0)
+btn.Size = UDim2.new(0, 50, 0, 50)
+btn.Image = "rbxassetid://15943857180"  -- icon gốc từ file bạn gửi
+
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = btn
+
+btn.MouseButton1Click:Connect(function()
+    -- ẨN/HIỆN UI bằng cách gửi phím END y như script gốc
+    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.End, false, game)
+end)
