@@ -15,7 +15,7 @@ local Window = Fluent:CreateWindow({
     Size = UDim2.fromOffset(530, 350),
     Acrylic = false,
     Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.End
+    MinimizeKey = Enum.KeyCode.End   -- toggle UI bằng END
 })
 
 ------------------------------------------------------------
@@ -26,7 +26,7 @@ local Tabs = {
 }
 
 ------------------------------------------------------------
--- 🧩 FUNCTION TWEEN CHUNG
+-- 🧩 TWEEN FUNCTION CHUNG
 ------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
@@ -85,20 +85,21 @@ end
 ------------------------------------------------------------
 -- 🧩 BUY SHARKMAN KARATE
 ------------------------------------------------------------
-local sharkmanPos = CFrame.new(-4972.2798, 314.5509, -3221.4897)
+
+local sharkPos = CFrame.new(-4972.2798, 314.5509, -3221.4897)
 
 local function buySharkman()
     pcall(function()
         ReplicatedStorage.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
     end)
-    warn("[Sharkman] Remote sent!")
+    warn("[Sharkman] Mua thành công!")
 end
 
 Tabs.Shop:AddButton({
     Title = "Buy Sharkman Karate",
-    Description = "Tween + Buy Sharkman Karate",
+    Description = "Tween → Buy Sharkman Karate",
     Callback = function()
-        toposition(sharkmanPos, function()
+        toposition(sharkPos, function()
             task.wait(0.2)
             buySharkman()
         end)
@@ -108,18 +109,19 @@ Tabs.Shop:AddButton({
 ------------------------------------------------------------
 -- 🧩 BUY DRAGON TALON
 ------------------------------------------------------------
+
 local dragonPos = CFrame.new(5776.378, 1209.483, 805.036)
 
 local function buyDragonTalon()
     pcall(function()
         ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
     end)
-    warn("[Dragon Talon] Remote sent!")
+    warn("[DragonTalon] Mua thành công!")
 end
 
 Tabs.Shop:AddButton({
     Title = "Buy Dragon Talon",
-    Description = "Tween + Buy Dragon Talon",
+    Description = "Tween → Buy Dragon Talon",
     Callback = function()
         toposition(dragonPos, function()
             task.wait(0.2)
@@ -129,8 +131,9 @@ Tabs.Shop:AddButton({
 })
 
 ------------------------------------------------------------
--- 🧩 ICON BẬT / TẮT UI — LOGO CAT HUB CŨ
+-- 🧩 ICON BẬT/TẮT UI (Cat Hub Logo Cũ) — FIX KHÔNG BẬT LẠI ĐƯỢC
 ------------------------------------------------------------
+
 local ToggleGui = Instance.new("ScreenGui")
 ToggleGui.Name = "ToggleUI"
 ToggleGui.Parent = game.CoreGui
@@ -148,9 +151,20 @@ ToggleBtn.Position = UDim2.new(0.12, 0, 0.09, 0)
 ToggleBtn.Image = "rbxassetid://14997704044"
 
 local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.CornerRadius = UDim.new(0,10)
 UICorner.Parent = ToggleBtn
 
 ToggleBtn.MouseButton1Click:Connect(function()
-    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.End, false, game)
+    local vim = game:GetService("VirtualInputManager")
+
+    -- Nhấn END
+    vim:SendKeyEvent(true, Enum.KeyCode.End, false, game)
+    task.wait(0.05)
+
+    -- Nhả END
+    vim:SendKeyEvent(false, Enum.KeyCode.End, false, game)
 end)
+
+------------------------------------------------------------
+-- 🎉 DONE — MỌI THỨ GỘP HOÀN CHỈNH
+------------------------------------------------------------
