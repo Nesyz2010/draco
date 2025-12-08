@@ -231,9 +231,9 @@ Tabs.Teleport:AddButton({
     Description = "Move to Hydra (same as buy melee)",
     Callback = function()
         toposition(CFrame.new(
-            5817.47705078125,
-            1208.5947265625,
-            904.3050537109375
+            5817.4765625,
+             1208.5947265625,
+              904.3052368164062
         ))
     end
 })
