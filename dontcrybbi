@@ -1,20 +1,8 @@
 repeat task.wait() until game:IsLoaded()
-
--- ANTI LOCALPLAYER CRASH
-local Players = game:GetService("Players")
-while not Players.LocalPlayer do task.wait() end
-local LP = Players.LocalPlayer
-
-repeat task.wait() until LP:FindFirstChild("PlayerGui")
-
-local TweenService = game:GetService("TweenService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local SPEED = 260
-
+repeat task.wait() until game.Players and game.Players.LocalPlayer
 
 ------------------------------------------------------------
--- FLUENT UI
+-- LOAD FLUENT UI
 ------------------------------------------------------------
 local Fluent = loadstring(game:HttpGet(
     "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
@@ -30,6 +18,9 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.End
 })
 
+------------------------------------------------------------
+-- CREATE TABS
+------------------------------------------------------------
 local Tabs = {
     Shop      = Window:AddTab({ Title = "Shop" }),
     Draco     = Window:AddTab({ Title = "Draco" }),
@@ -38,38 +29,38 @@ local Tabs = {
     Teleport  = Window:AddTab({ Title = "Teleport" }),
 }
 
+------------------------------------------------------------
+-- MOVE FUNCTION (Tween di chuyển)
+------------------------------------------------------------
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SPEED = 260
 
-------------------------------------------------------------
--- TWEEN MOVE
-------------------------------------------------------------
 local function toposition(Pos, onDone)
-    local char = LP.Character or LP.CharacterAdded:Wait()
+    local lp = Players.LocalPlayer
+    local char = lp.Character or lp.CharacterAdded:Wait()
     local hrp = char:WaitForChild("HumanoidRootPart")
-    local hum = char:FindFirstChildOfClass("Humanoid")
 
     local root = char:FindFirstChild("Root")
     if not root then
         root = Instance.new("Part")
-        root.Size = Vector3.new(20, 0.5, 20)
         root.Name = "Root"
         root.Anchored = true
         root.Transparency = 1
         root.CanCollide = false
+        root.Size = Vector3.new(20, 0.5, 20)
         root.CFrame = hrp.CFrame
         root.Parent = char
     end
 
-    if hum and hum.Sit then hum.Sit = false end
-
     local dist = (Pos.Position - hrp.Position).Magnitude
-    if dist <= 10 then
-        root.CFrame = Pos
-        hrp.CFrame = Pos
-        if onDone then onDone() end
-        return
-    end
+    local tween = TweenService:Create(
+        root,
+        TweenInfo.new(dist / SPEED, Enum.EasingStyle.Linear),
+        { CFrame = Pos }
+    )
 
-    local tween = TweenService:Create(root, TweenInfo.new(dist / SPEED, Enum.EasingStyle.Linear), { CFrame = Pos })
     tween:Play()
 
     task.spawn(function()
@@ -85,7 +76,6 @@ local function toposition(Pos, onDone)
     end)
 end
 
-
 ------------------------------------------------------------
 -- SHOP TAB
 ------------------------------------------------------------
@@ -94,9 +84,7 @@ Tabs.Shop:AddButton({
     Callback = function()
         toposition(CFrame.new(-4972.2798, 314.5509, -3221.4897), function()
             task.wait(.25)
-            pcall(function()
-                ReplicatedStorage.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
-            end)
+            ReplicatedStorage.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
         end)
     end
 })
@@ -105,53 +93,52 @@ Tabs.Shop:AddButton({
     Title = "Buy Dragon Talon",
     Callback = function()
         toposition(CFrame.new(5776.378, 1209.483, 805.036), function()
-            pcall(function()
-                ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
-            end)
+            task.wait(.25)
+            ReplicatedStorage.Remotes.CommF_:InvokeServer("BuyDragonTalon")
         end)
     end
 })
 
 Tabs.Shop:AddButton({
-    Title = "Random Race (3K Fragments)",
+    Title = "Random Race (3K Frags)",
     Callback = function()
         pcall(function()
-            ReplicatedStorage.Remotes.CommF_:InvokeServer("BlackbeardReward","Reroll","1")
-            ReplicatedStorage.Remotes.CommF_:InvokeServer("BlackbeardReward","Reroll","2")
+            local r = ReplicatedStorage.Remotes.CommF_
+            r:InvokeServer("BlackbeardReward","Reroll","1")
+            r:InvokeServer("BlackbeardReward","Reroll","2")
         end)
     end
 })
 
 Tabs.Shop:AddButton({
-    Title = "Reset Stats (2.5K Fragments)",
+    Title = "Reset Stats (2.5K Frags)",
     Callback = function()
         pcall(function()
-            ReplicatedStorage.Remotes.CommF_:InvokeServer("BlackbeardReward","Refund","1")
-            ReplicatedStorage.Remotes.CommF_:InvokeServer("BlackbeardReward","Refund","2")
+            local r = ReplicatedStorage.Remotes.CommF_
+            r:InvokeServer("BlackbeardReward","Refund","1")
+            r:InvokeServer("BlackbeardReward","Refund","2")
         end)
     end
 })
-
 
 ------------------------------------------------------------
--- DRACO TAB (AUTO DOJO QUEST FIX VĨNH VIỄN)
+-- DRACO TAB
 ------------------------------------------------------------
 local dojoPos = CFrame.new(5865.9468, 1208.5947, 872.6288)
+local RF_Dragon = ReplicatedStorage.Modules.Net["RF/InteractDragonQuest"]
 
-local function ReadDojoState()
-    local data = LP:FindFirstChild("Data")
-    if not data then return nil end
+-- Dojo Trainer Quest (FIXED)
+local function dojoRemote(cmd)
+    local args = {
+        NPC = "Dojo Trainer",
+        Command = cmd
+    }
 
-    return data:FindFirstChild("Dojo") and data.Dojo:FindFirstChild("Quest") and data.Dojo.Quest.Value
-end
-
-local function DojoRemote(cmd)
     pcall(function()
-        ReplicatedStorage.Modules.Net["RF/InteractDragonQuest"]:InvokeServer({
-            NPC = "Dojo Trainer",
-            Command = cmd
-        })
+        RF_Dragon:InvokeServer(args)
     end)
+
+    warn("[DOJO] Sent:", cmd)
 end
 
 Tabs.Draco:AddButton({
@@ -159,91 +146,114 @@ Tabs.Draco:AddButton({
     Callback = function()
         toposition(dojoPos, function()
             task.wait(.3)
-            local q = ReadDojoState()
 
-            if q == nil then
-                warn("[DOJO] Quest không tồn tại (acc mới?)")
+            local data = Players.LocalPlayer:FindFirstChild("Data")
+            if not data then
+                warn("[DOJO] Không tìm thấy folder Data")
                 return
             end
 
-            warn("[DOJO] Quest State:", q)
+            local dojoFolder = data:FindFirstChild("Dojo")
+            if not dojoFolder then
+                warn("[DOJO] Acc mới? Chưa có Dojo Quest")
+                return
+            end
 
-            if q == "None" then 
-                DojoRemote("RequestQuest")
-            elseif q == "Complete" then
-                DojoRemote("CompleteQuest")
+            local q = dojoFolder:FindFirstChild("Quest")
+            if not q then
+                warn("[DOJO] Quest state not found")
+                return
+            end
+
+            warn("[DOJO] Quest State:", q.Value)
+
+            if q.Value == "None" then
+                dojoRemote("RequestQuest")
+            elseif q.Value == "Complete" then
+                dojoRemote("CompleteQuest")
             end
         end)
     end
 })
 
-
-------------------------------------------------------------
--- DRAGON WIZARD (LEARN TETHER FIXED)
-------------------------------------------------------------
-local function LearnTether()
-    pcall(function()
-        ReplicatedStorage.Modules.Net["RF/InteractDragonQuest"]:InvokeServer({
-            NPC = "Dragon Wizard",
-            Command = "LearnTether"
-        })
-    end)
-end
-
+-- Learn Tether (BẢN GỐC KHÔNG CHUNG FUNCTION)
 Tabs.Draco:AddButton({
     Title = "Learn Tether",
     Callback = function()
         toposition(CFrame.new(5776.378, 1209.483, 805.036), function()
             task.wait(.25)
-            LearnTether()
+
+            local args = {
+                NPC = "Dragon Wizard",
+                Command = "LearnTether"
+            }
+
+            pcall(function()
+                ReplicatedStorage
+                    :WaitForChild("Modules")
+                    :WaitForChild("Net")
+                    :WaitForChild("RF/InteractDragonQuest")
+                    :InvokeServer(args)
+            end)
+
+            warn("[LearnTether] Sent (bản gốc)")
         end)
     end
 })
 
-
 ------------------------------------------------------------
--- BLUE BELT – FRUIT TOOLS
+-- DOJO BELT (BLUE)
 ------------------------------------------------------------
 Tabs.Belt:AddButton({
     Title = "Closet Fruit",
     Callback = function()
-        toposition(CFrame.new(-12550.0712890625, 337.4825, -7485.722))
+        toposition(CFrame.new(-12550.0712890625, 337.48, -7485.722167))
     end
 })
 
 Tabs.Belt:AddButton({
     Title = "Lụm Fruit Gần Nhất",
     Callback = function()
-        local char = LP.Character
-        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local lp = Players.LocalPlayer
+        local char = lp.Character
+        if not char then return end
 
+        local hrp = char:FindFirstChild("HumanoidRootPart")
         local nearest, dist = nil, math.huge
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("Tool") and obj:FindFirstChild("Handle") then
-                local d = (obj.Handle.Position - hrp.Position).Magnitude
+
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if v:IsA("Tool") and v:FindFirstChild("Handle") then
+                local d = (v.Handle.Position - hrp.Position).Magnitude
                 if d < dist then
                     dist = d
-                    nearest = obj
+                    nearest = v
                 end
             end
         end
-        if not nearest then return end
-        
-        toposition(nearest.Handle.CFrame, function()
-            task.wait(.1)
-            firetouchinterest(hrp, nearest.Handle, 0)
-            firetouchinterest(hrp, nearest.Handle, 1)
-        end)
+
+        if nearest then
+            toposition(nearest.Handle.CFrame, function()
+                task.wait(.1)
+                firetouchinterest(hrp, nearest.Handle, 0)
+                task.wait()
+                firetouchinterest(hrp, nearest.Handle, 1)
+            end)
+        end
     end
 })
 
 Tabs.Belt:AddButton({
     Title = "Drop Fruit",
     Callback = function()
-        local bp = LP.Backpack
-        local char = LP.Character
+        local lp = Players.LocalPlayer
+        local char = lp.Character
+        local bp = lp.Backpack
+        if not char then return end
 
-        local tool = char:FindFirstChildWhichIsA("Tool") or bp:FindFirstChildWhichIsA("Tool")
+        local tool =
+            char:FindFirstChildWhichIsA("Tool")
+            or bp:FindFirstChildWhichIsA("Tool")
+
         if not tool then return end
 
         if tool.Parent == bp then
@@ -256,28 +266,26 @@ Tabs.Belt:AddButton({
     end
 })
 
-
 ------------------------------------------------------------
--- ORANGE BELT SEATS
+-- DOJO BELT (ORANGE)
 ------------------------------------------------------------
-local seats = {
-    { -12591.05, 337.6287, -7544.75 },
-    { -12602.31, 337.6280, -7544.75 },
-    { -12591.05, 337.6287, -7556.75 },
-    { -12602.31, 337.6280, -7556.75 },
-    { -12591.05, 337.6287, -7568.75 },
-    { -12602.31, 337.6280, -7568.75 },
+local ORANGE_POS = {
+    CFrame.new(-12591.0586, 337.6287, -7544.7568),
+    CFrame.new(-12602.3125, 337.6280, -7544.7568),
+    CFrame.new(-12591.0586, 337.6287, -7556.7568),
+    CFrame.new(-12602.3125, 337.6280, -7556.7568),
+    CFrame.new(-12591.0586, 337.6287, -7568.7568),
+    CFrame.new(-12602.3125, 337.6280, -7568.7568),
 }
 
-for i, v in ipairs(seats) do
+for i = 1, 6 do
     Tabs.Orange:AddButton({
         Title = "TP Orange Belt (Ghế " .. i .. ")",
         Callback = function()
-            toposition(CFrame.new(v[1], v[2], v[3]))
+            toposition(ORANGE_POS[i])
         end
     })
 end
-
 
 ------------------------------------------------------------
 -- TELEPORT TAB
@@ -285,38 +293,36 @@ end
 Tabs.Teleport:AddButton({
     Title = "Mansion",
     Callback = function()
-        toposition(CFrame.new(-12549.66, 337.48, -7531.43))
+        toposition(CFrame.new(-12549.663, 337.4825, -7531.4306))
     end
 })
 
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt 1)",
     Callback = function()
-        toposition(CFrame.new(5817.47, 1208.59, 904.30))
+        toposition(CFrame.new(5817.4770, 1208.5947, 904.3050))
     end
 })
 
 Tabs.Teleport:AddButton({
     Title = "Hydra (Blue Belt 2)",
     Callback = function()
-        toposition(CFrame.new(5816.97, 1208.59, 898.19))
+        toposition(CFrame.new(5816.9785, 1208.5947, 898.1947))
     end
 })
 
-
 ------------------------------------------------------------
--- UI TOGGLE BUTTON (LOGO GÓC PHẢI)
+-- UI TOGGLE BUTTON (GÓC PHẢI)
 ------------------------------------------------------------
 local ToggleGui = Instance.new("ScreenGui", game.CoreGui)
 local Btn = Instance.new("ImageButton", ToggleGui)
 
-Btn.Size = UDim2.new(0, 50, 0, 50)
-Btn.Position = UDim2.new(0.93, 0, 0.09, 0)
+Btn.Size = UDim2.new(0, 45, 0, 45)
+Btn.Position = UDim2.new(0.94, 0, 0.15, 0)
 Btn.Image = "rbxassetid://14997704044"
 Btn.BackgroundColor3 = Color3.fromRGB(255,255,255)
 
-local corner = Instance.new("UICorner", Btn)
-corner.CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 10)
 
 Btn.MouseButton1Click:Connect(function()
     local vim = game:GetService("VirtualInputManager")
