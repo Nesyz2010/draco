@@ -101,7 +101,6 @@ Tabs.Shop:AddButton({
     end
 })
 
--- ⭐ RANDOM RACE (GỘP THÊM)
 Tabs.Shop:AddButton({
     Title = "Random Race (Use 3K Fragments)",
     Callback = function()
@@ -109,6 +108,17 @@ Tabs.Shop:AddButton({
         pcall(function()
             rf:InvokeServer("BlackbeardReward","Reroll","1")
             rf:InvokeServer("BlackbeardReward","Reroll","2")
+        end)
+    end
+})
+
+Tabs.Shop:AddButton({
+    Title = "Reset Stats (Use 2.5K Fragments)",
+    Callback = function()
+        local rf = game:GetService("ReplicatedStorage").Remotes.CommF_
+        pcall(function()
+            rf:InvokeServer("BlackbeardReward","Refund","1")
+            rf:InvokeServer("BlackbeardReward","Refund","2")
         end)
     end
 })
@@ -151,7 +161,7 @@ Tabs.Draco:AddButton({
 })
 
 ------------------------------------------------------------
--- DOJO BELT BLUE TAB
+-- DOJO BELT (BLUE)
 ------------------------------------------------------------
 Tabs.Belt:AddButton({
     Title = "Closet Fruit",
@@ -209,19 +219,18 @@ Tabs.Belt:AddButton({
 })
 
 ------------------------------------------------------------
--- DOJO BELT ORANGE (6 GHẾ)
+-- DOJO BELT (ORANGE)
 ------------------------------------------------------------
-
 local function seat(cf)
     toposition(cf)
 end
 
-Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 1)", Callback = function() seat(CFrame.new(-12591.058,337.6287,-7544.756)) end })
-Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 2)", Callback = function() seat(CFrame.new(-12602.312,337.6280,-7544.756)) end })
-Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 3)", Callback = function() seat(CFrame.new(-12591.058,337.6287,-7556.756)) end })
-Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 4)", Callback = function() seat(CFrame.new(-12602.312,337.6280,-7556.756)) end })
-Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 5)", Callback = function() seat(CFrame.new(-12591.058,337.6287,-7568.756)) end })
-Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 6)", Callback = function() seat(CFrame.new(-12602.312,337.6280,-7568.756)) end })
+Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 1)", Callback = function() seat(CFrame.new(-12591.0586,337.6287,-7544.7568)) end })
+Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 2)", Callback = function() seat(CFrame.new(-12602.3125,337.6280,-7544.7568)) end })
+Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 3)", Callback = function() seat(CFrame.new(-12591.0586,337.6287,-7556.7568)) end })
+Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 4)", Callback = function() seat(CFrame.new(-12602.3125,337.6280,-7556.7568)) end })
+Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 5)", Callback = function() seat(CFrame.new(-12591.0586,337.6287,-7568.7568)) end })
+Tabs.Orange:AddButton({ Title = "TP Orange Belt (Ghế 6)", Callback = function() seat(CFrame.new(-12602.3125,337.6280,-7568.7568)) end })
 
 ------------------------------------------------------------
 -- TELEPORT TAB
