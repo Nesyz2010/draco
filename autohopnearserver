@@ -1,0 +1,285 @@
+repeat task.wait() until game:IsLoaded()
+
+getgenv().DontHopSameServer = true
+getgenv().CacheSeconds = 60
+getgenv().HopMaxPlayers = 5
+
+getgenv().HopForcedRegion = ""
+
+getgenv().AutoHopNearPlayers = true
+getgenv().NearDistance = 400
+getgenv().NearCheckEvery = 0.5
+getgenv().AutoHopCooldown = 8
+
+getgenv().TargetPlayerCount = nil     
+getgenv().PlayerCountTolerance = 5    
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local CoreGui = game:GetService("CoreGui")
+
+local LP = Players.LocalPlayer
+
+local function IfTableHaveIndex(t)
+    if type(t) ~= "table" then return false end
+    for _ in pairs(t) do
+        return true
+    end
+    return false
+end
+
+local ServerBrowser = ReplicatedStorage:FindFirstChild("__ServerBrowser")
+
+local LastServersDataPulled, CachedServers
+
+local function GetServers()
+    if not ServerBrowser then return nil end
+
+    if LastServersDataPulled and CachedServers then
+        if os.time() - LastServersDataPulled < (getgenv().CacheSeconds or 60) then
+            return CachedServers
+        end
+    end
+
+    for page = 1, 100 do
+        local ok, data = pcall(function()
+            return ServerBrowser:InvokeServer(page)
+        end)
+        if ok and IfTableHaveIndex(data) then
+            LastServersDataPulled = os.time()
+            CachedServers = data
+            return data
+        end
+    end
+
+    return nil
+end
+
+local function BuildArrayServers(Servers)
+    local arr = {}
+    for jobId, v in pairs(Servers) do
+        if type(v) == "table" then
+            table.insert(arr, {
+                JobId = jobId,
+                Players = tonumber(v.Count) or 0,
+                LastUpdate = v.__LastUpdate,
+                Region = v.Region
+            })
+        end
+    end
+    return arr
+end
+
+local function PickServer(ArrayServers, MaxPlayers, ForcedRegion)
+    if not ArrayServers or #ArrayServers == 0 then return nil end
+
+    MaxPlayers = tonumber(MaxPlayers)
+    ForcedRegion = (ForcedRegion and tostring(ForcedRegion):gsub("^%s+", ""):gsub("%s+$", "")) or ""
+    if ForcedRegion == "" then ForcedRegion = nil end
+
+    for i = #ArrayServers, 2, -1 do
+        local j = math.random(1, i)
+        ArrayServers[i], ArrayServers[j] = ArrayServers[j], ArrayServers[i]
+    end
+
+    for _, s in ipairs(ArrayServers) do
+        if s and s.JobId then
+            if (not MaxPlayers) or (s.Players <= MaxPlayers) then
+                if (not ForcedRegion) or (s.Region == ForcedRegion) then
+                    if getgenv().DontHopSameServer and s.JobId == game.JobId then
+                    else
+                        return s
+                    end
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+local function HopServer(Reason, MaxPlayers, ForcedRegion)
+    local Servers = GetServers()
+    if not Servers then return false, "GetServers failed" end
+
+    local ArrayServers = BuildArrayServers(Servers)
+    local server = PickServer(ArrayServers, MaxPlayers, ForcedRegion)
+    if not server then
+        return false, "No matching server"
+    end
+
+    TeleportService:TeleportToPlaceInstance(game.PlaceId, server.JobId, LP)
+    return true, "Teleporting..."
+end
+
+--================ UI MỚI =================--
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "ServerHop_UI"
+gui.ResetOnSpawn = false
+pcall(function()
+    gui.Parent = (gethui and gethui()) or CoreGui
+end)
+
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 360, 0, 240)
+main.Position = UDim2.new(0.5, -180, 0.5, -120)
+main.BackgroundColor3 = Color3.fromRGB(18,18,18)
+main.BorderSizePixel = 0
+main.Parent = gui
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
+
+local stroke = Instance.new("UIStroke", main)
+stroke.Color = Color3.fromRGB(60,60,60)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 0, 30)
+title.Position = UDim2.new(0, 10, 0, 8)
+title.BackgroundTransparency = 1
+title.Text = "Server Hop Panel"
+title.TextColor3 = Color3.fromRGB(255,255,255)
+title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = main
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 28, 0, 28)
+closeBtn.Position = UDim2.new(1, -36, 0, 8)
+closeBtn.BackgroundColor3 = Color3.fromRGB(35,35,35)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+closeBtn.Parent = main
+Instance.new("UICorner", closeBtn)
+
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -20, 0, 45)
+status.Position = UDim2.new(0, 10, 0, 40)
+status.BackgroundColor3 = Color3.fromRGB(25,25,25)
+status.Text = "Status: Ready"
+status.TextColor3 = Color3.fromRGB(200,200,200)
+status.TextWrapped = true
+status.Parent = main
+Instance.new("UICorner", status)
+
+local function setStatus(t)
+    status.Text = "Status: " .. tostring(t)
+end
+
+local function createBox(y, text)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0, 140, 0, 20)
+    lbl.Position = UDim2.new(0, 10, 0, y)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = Color3.fromRGB(220,220,220)
+    lbl.Parent = main
+
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(0, 180, 0, 28)
+    box.Position = UDim2.new(0, 160, 0, y-4)
+    box.BackgroundColor3 = Color3.fromRGB(30,30,30)
+    box.TextColor3 = Color3.fromRGB(255,255,255)
+    box.ClearTextOnFocus = false
+    box.Parent = main
+    Instance.new("UICorner", box)
+
+    return box
+end
+
+local maxBox = createBox(95, "Max Players")
+local regBox = createBox(130, "Region")
+
+maxBox.Text = tostring(getgenv().HopMaxPlayers or "")
+regBox.Text = tostring(getgenv().HopForcedRegion or "")
+
+local hopBtn = Instance.new("TextButton")
+hopBtn.Size = UDim2.new(1, -20, 0, 40)
+hopBtn.Position = UDim2.new(0, 10, 1, -55)
+hopBtn.BackgroundColor3 = Color3.fromRGB(0,170,255)
+hopBtn.Text = "HOP SERVER"
+hopBtn.TextColor3 = Color3.fromRGB(255,255,255)
+hopBtn.Parent = main
+Instance.new("UICorner", hopBtn)
+
+closeBtn.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
+-- DRAG
+do
+    local UIS = game:GetService("UserInputService")
+    local dragging, dragStart, startPos
+
+    main.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+        end
+    end)
+
+    main.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            main.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+local function resolveMaxPlayersFromUI()
+    if maxBox.Text == "" then return nil end
+    return tonumber(maxBox.Text)
+end
+
+hopBtn.MouseButton1Click:Connect(function()
+    local maxPlayers = resolveMaxPlayersFromUI()
+    local region = regBox.Text
+
+    setStatus("Searching...")
+    local ok, msg = HopServer("GUI", maxPlayers, region)
+    setStatus(msg)
+end)
+
+setStatus("Ready")
+
+-- AUTO HOP GIỮ NGUYÊN
+local lastAutoHop = 0
+
+local function getHRP(plr)
+    local ch = plr and plr.Character
+    return ch and ch:FindFirstChild("HumanoidRootPart")
+end
+
+task.spawn(function()
+    while gui and gui.Parent do
+        task.wait(getgenv().NearCheckEvery)
+
+        if not getgenv().AutoHopNearPlayers then continue end
+        if os.clock() - lastAutoHop < getgenv().AutoHopCooldown then continue end
+
+        local myHRP = getHRP(LP)
+        if not myHRP then continue end
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP then
+                local hrp = getHRP(p)
+                if hrp and (hrp.Position - myHRP.Position).Magnitude <= getgenv().NearDistance then
+                    lastAutoHop = os.clock()
+                    setStatus("Player near -> hopping")
+                    HopServer("Auto", resolveMaxPlayersFromUI(), regBox.Text)
+                    break
+                end
+            end
+        end
+    end
+end)
