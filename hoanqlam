@@ -398,12 +398,15 @@ local function orangeApi(method, path, body)
                 if statusCode >= 200 and statusCode < 300 then
                     orangeHttpFailures = 0
 
-                    local session = decoded.session
-                    if type(session) == "table"
-                        and tonumber(session.session_version) then
-                        orangeSessionVersion = tonumber(
-                            session.session_version
+                    local version =
+                        tonumber(decoded.session_version)
+                        or (
+                            type(decoded.session) == "table"
+                            and tonumber(decoded.session.version)
                         )
+
+                    if version then
+                        orangeSessionVersion = version
                     end
 
                     return finish(decoded)
@@ -2442,7 +2445,42 @@ local function orangeResumeSession(state)
             end
 
             -- Re-submit match so a waiting player can claim/create a pair.
-            pcall(orangeMatchRequest)
+            -- Handle HTTP 409/hop_required instead of endlessly spamming /api/match.
+            local matchResult = orangeMatchRequest()
+
+            if matchResult then
+                if matchResult.success == true then
+                    -- Match/create succeeded. /api/check will return the session
+                    -- on the next loop iteration.
+                    task.wait(0.5)
+
+                elseif matchResult.hop_required == true then
+                    local reason = tostring(
+                        matchResult.error or "server_unavailable"
+                    )
+
+                    warn(
+                        "[Orange Belt] Server hiện tại không thể tạo pair:",
+                        reason
+                    )
+
+                    orangeSetStatus(
+                        "ORANGE BELT • SERVER UNAVAILABLE",
+                        reason == "server_player_limit"
+                            and "Server quá đông, đang tìm server khác"
+                            or "Server đã đủ pair, đang tìm server khác"
+                    )
+
+                    orangeSessionActive = false
+
+                    if getgenv().OrangeHopLowestServer then
+                        getgenv().OrangeHopLowestServer()
+                    end
+
+                    return false
+                end
+            end
+
             task.wait(1.5)
         end
 
