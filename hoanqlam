@@ -272,6 +272,8 @@ ORANGE_TRADE_TIMEOUT = 300
 ORANGE_SERVER_LIST_LIMIT = 100
 ORANGE_SERVER_LIST_PAGES = 3
 ORANGE_HOP_RETRY_DELAY = 4
+ORANGE_JOIN_MAX_FAILURES = 3
+ORANGE_JOIN_VERIFY_SECONDS = 10
 ORANGE_TENANT_ID = tostring(
     getgenv().DracoVortexZ_DB or "default"
 )
@@ -806,6 +808,9 @@ end
 
 orangeLastJoinTarget = nil
 orangeJoinAttemptToken = 0
+orangeJoinFailureCount = 0
+orangeJoinFailureTarget = nil
+orangeJoinRecoveryBusy = false
 
 getgenv().OrangeHopLowestServer = function()
     local httpRequest = getHttpRequest()
@@ -896,9 +901,9 @@ getgenv().OrangeHopLowestServer = function()
         return a.playing < b.playing
     end)
 
-    -- Chia acc ra vài server ít người nhất thay vì tất cả dồn vào server #1.
-    local poolSize = math.min(8, #candidates)
-    local selectedIndex = (math.abs(plr.UserId) % poolSize) + 1
+    -- Cả hai acc trong cùng tenant luôn ưu tiên cùng server ít người nhất.
+    -- Không chia theo UserId vì sẽ làm requester/helper bị tách sang hai JobId.
+    local selectedIndex = 1
     local selected = candidates[selectedIndex]
 
     warn(
@@ -914,6 +919,7 @@ getgenv().OrangeHopLowestServer = function()
 
     orangeSessionActive = false
     orangeTeleporting = true
+    orangeHeartbeat("hopping_low_player_" .. tostring(selected.playing))
 
     local serverBrowser = ReplicatedStorage:FindFirstChild("__ServerBrowser")
         or ReplicatedStorage:WaitForChild("__ServerBrowser", 10)
@@ -937,6 +943,53 @@ getgenv().OrangeHopLowestServer = function()
     return true
 end
 
+local function orangeRecoverFromDeadJoin(reason, failedJobId)
+    if orangeJoinRecoveryBusy then
+        return
+    end
+
+    orangeJoinRecoveryBusy = true
+    orangeTeleporting = false
+    orangeSessionActive = false
+
+    warn(
+        "[Orange Belt] JobId không join được, reset pair:",
+        tostring(failedJobId),
+        "| reason:",
+        tostring(reason)
+    )
+
+    orangeSetStatus(
+        "ORANGE BELT • DEAD SERVER",
+        "JobId cũ không vào được, đang hủy pair và tìm low player"
+    )
+
+    -- Hủy session cũ để requester/helper không tiếp tục giữ JobId chết.
+    pcall(function()
+        orangeCancel(reason or "helper_join_failed")
+    end)
+
+    task.wait(0.8)
+
+    orangeJoinFailureCount = 0
+    orangeJoinFailureTarget = nil
+    orangeLastJoinTarget = nil
+
+    local hopped = false
+    if getgenv().OrangeHopLowestServer then
+        hopped = getgenv().OrangeHopLowestServer() == true
+    end
+
+    if not hopped then
+        warn("[Orange Belt] Chưa hop được low player; vòng chính sẽ thử lại.")
+        orangeTeleporting = false
+    end
+
+    task.delay(3, function()
+        orangeJoinRecoveryBusy = false
+    end)
+end
+
 local function orangeJoinJob(placeId, jobId)
     local requestedJobId = tostring(jobId or "")
 
@@ -948,7 +1001,14 @@ local function orangeJoinJob(placeId, jobId)
     if game.JobId == requestedJobId then
         orangeTeleporting = false
         orangeLastJoinTarget = requestedJobId
+        orangeJoinFailureTarget = nil
+        orangeJoinFailureCount = 0
         return true
+    end
+
+    if orangeJoinFailureTarget ~= requestedJobId then
+        orangeJoinFailureTarget = requestedJobId
+        orangeJoinFailureCount = 0
     end
 
     orangeJoinAttemptToken += 1
@@ -960,8 +1020,10 @@ local function orangeJoinJob(placeId, jobId)
     if getgenv().DracoFlowUI then
         getgenv().DracoFlowUI:SetStatus("JOIN REQUESTER")
         getgenv().DracoFlowUI:SetSubStatus(
-            "Join JobId mới từ server"
+            "Đang join JobId requester"
             .. "\n" .. string.sub(requestedJobId, 1, 22) .. "..."
+            .. "\nFail: " .. tostring(orangeJoinFailureCount)
+                .. "/" .. tostring(ORANGE_JOIN_MAX_FAILURES)
         )
     end
 
@@ -971,18 +1033,24 @@ local function orangeJoinJob(placeId, jobId)
         "| target:",
         requestedJobId,
         "| token:",
-        myToken
+        myToken,
+        "| fail:",
+        orangeJoinFailureCount,
+        "/",
+        ORANGE_JOIN_MAX_FAILURES
     )
 
     local serverBrowser = ReplicatedStorage:FindFirstChild("__ServerBrowser")
         or ReplicatedStorage:WaitForChild("__ServerBrowser", 10)
 
     if not serverBrowser then
-        if myToken == orangeJoinAttemptToken then
-            orangeTeleporting = false
+        orangeTeleporting = false
+        orangeHeartbeat("join_failed_no_browser")
+        orangeJoinFailureCount += 1
+
+        if orangeJoinFailureCount >= ORANGE_JOIN_MAX_FAILURES then
+            task.spawn(orangeRecoverFromDeadJoin, "missing_server_browser", requestedJobId)
         end
-        orangeHeartbeat("join_failed")
-        warn("[Orange Belt] Không tìm thấy __ServerBrowser")
         return false
     end
 
@@ -991,40 +1059,65 @@ local function orangeJoinJob(placeId, jobId)
         return serverBrowser:InvokeServer("teleport", requestedJobId)
     end)
 
+    warn("[Orange Belt] Join result:", result)
+
     if not ok then
-        if myToken == orangeJoinAttemptToken then
-            orangeTeleporting = false
-        end
-        orangeHeartbeat("join_failed")
+        orangeTeleporting = false
+        orangeHeartbeat("join_remote_error")
+        orangeJoinFailureCount += 1
         warn("[Orange Belt] Join lỗi:", result)
+
+        if orangeJoinFailureCount >= ORANGE_JOIN_MAX_FAILURES then
+            task.spawn(orangeRecoverFromDeadJoin, "join_remote_error", requestedJobId)
+        end
         return false
     end
 
-    warn("[Orange Belt] Join result:", result)
-
-    task.delay(10, function()
-        -- Ignore callbacks belonging to an older/stale target.
+    -- InvokeServer thường trả nil kể cả khi request teleport đã được gửi.
+    -- Xác nhận bằng JobId sau ORANGE_JOIN_VERIFY_SECONDS.
+    task.delay(ORANGE_JOIN_VERIFY_SECONDS, function()
         if myToken ~= orangeJoinAttemptToken then
             return
         end
 
         if game.JobId == requestedJobId then
             orangeTeleporting = false
+            orangeJoinFailureCount = 0
+            orangeJoinFailureTarget = nil
+            orangeHeartbeat("joined_requester")
             return
         end
 
         if game.JobId == oldJobId then
             orangeTeleporting = false
-            orangeHeartbeat("join_retry_fresh_target")
+            orangeJoinFailureCount += 1
+            orangeHeartbeat("join_verify_failed")
+
             warn(
-                "[Orange Belt] Chưa đổi server; lần sau sẽ lấy lại JobId mới từ /api/check."
+                "[Orange Belt] Không đổi JobId | fail:",
+                orangeJoinFailureCount,
+                "/",
+                ORANGE_JOIN_MAX_FAILURES,
+                "| target:",
+                requestedJobId
             )
+
+            if orangeJoinFailureCount >= ORANGE_JOIN_MAX_FAILURES then
+                task.spawn(
+                    orangeRecoverFromDeadJoin,
+                    "join_verify_failed",
+                    requestedJobId
+                )
+            else
+                warn(
+                    "[Orange Belt] Sẽ thử lại JobId; quá giới hạn sẽ hủy pair và hop low player."
+                )
+            end
         end
     end)
 
     return true
 end
-
 
 --==================================================
 -- AUTO REMOVE FRUIT WHEN RECEIVER CAPACITY IS FULL
