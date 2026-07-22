@@ -2732,6 +2732,14 @@ local function orangeResumeSession(state)
                     -- on the next loop iteration.
                     task.wait(0.5)
 
+                elseif matchResult.waiting == true
+                    and matchResult.error == "requester_finding_low_server" then
+                    orangeSetStatus(
+                        "ORANGE BELT • WAIT REQUESTER",
+                        "Acc đầu đang tìm server low-player"
+                    )
+                    task.wait(1)
+
                 elseif matchResult.hop_required == true then
                     local reason = tostring(
                         matchResult.error or "server_unavailable"
@@ -2769,8 +2777,81 @@ local function orangeResumeSession(state)
         end
     end
 
+    -- Requester must select a low-player server before a helper is assigned.
+    if playerState.role == "requester"
+        and session.status == "requester_relocating" then
+
+        orangeSetStatus(
+            "ORANGE BELT • LOW SERVER READY",
+            "Đang xác nhận JobId low-player rồi mới gọi helper"
+        )
+
+        orangeHeartbeat("requester_low_ready")
+
+        local finalizeStarted = tick()
+        while tick() - finalizeStarted < 30 do
+            local finalized = orangeCheck()
+            local finalizedSession = finalized and finalized.session
+            local finalizedPlayer = finalized and finalized.player
+
+            if finalizedSession
+                and finalizedSession.status ~= "requester_relocating" then
+                state = finalized
+                session = finalizedSession
+                playerState = finalizedPlayer or playerState
+                break
+            end
+
+            orangeHeartbeat("requester_low_ready")
+            task.wait(1)
+        end
+
+        if session.status == "requester_relocating" then
+            warn(
+                "[Orange Belt] Server low hiện tại chưa đủ điều kiện; "
+                .. "requester sẽ tìm server low khác."
+            )
+            orangeSessionActive = false
+            getgenv().OrangeHopLowestServer()
+            return false
+        end
+    end
+
+    -- Requester waits here. Only after its low-player JobId is finalized can
+    -- the API assign the second account as helper.
+    if playerState.role == "requester" and not session.helper then
+        orangeSetStatus(
+            "ORANGE BELT • WAIT HELPER",
+            "Đã chọn server low-player, đang gọi acc còn lại vào"
+        )
+
+        local helperStarted = tick()
+        while tick() - helperStarted < 120 do
+            orangeHeartbeat("requester_waiting_helper")
+            local fresh = orangeCheck()
+            local freshSession = fresh and fresh.session
+
+            if freshSession and freshSession.helper then
+                state = fresh
+                session = freshSession
+                playerState = fresh.player or playerState
+                break
+            end
+
+            task.wait(1)
+        end
+
+        if not session.helper then
+            warn("[Orange Belt] Chưa có helper join queue, tiếp tục chờ vòng sau.")
+            orangeSessionActive = false
+            return false
+        end
+    end
+
     playerState.seat_index =
         tonumber(playerState.seat_index)
+        or tonumber(session.requester_seat)
+        or tonumber(session.helper_seat)
         or tonumber(session.seat_index)
         or tonumber(session.pair_slot)
 
@@ -2787,6 +2868,19 @@ local function orangeResumeSession(state)
     end
 
     if playerState.role == "helper" then
+        -- Never select a low-player server on the helper. Wait until requester
+        -- finalizes its new JobId, then join exactly that server.
+        if session.status == "requester_relocating"
+            or tonumber(session.pair_slot or 0) <= 0 then
+            orangeSetStatus(
+                "ORANGE BELT • WAIT REQUESTER",
+                "Requester đang tìm server low-player"
+            )
+            orangeSessionActive = false
+            task.wait(1.5)
+            return false
+        end
+
         -- /api/check returns a fresh authoritative join target.
         local joinData = state.join
         local targetJobId = tostring(
@@ -2994,10 +3088,19 @@ local function runOrangeBelt()
 
     orangeSetStatus(
         "ORANGE BELT • REQUESTER",
-        "Đã vào queue, đang chờ helper"
+        "Đã làm requester, đang tìm server low-player trước"
     )
 
-    return orangeResumeSession(orangeCheck() or matched)
+    -- Only requester searches for a low-player server. Helper stays put and
+    -- will be assigned after requester reports the new authoritative JobId.
+    orangeHeartbeat("requester_relocating")
+    orangeSessionActive = false
+
+    if getgenv().OrangeHopLowestServer then
+        getgenv().OrangeHopLowestServer()
+    end
+
+    return false
 end
 
 task.spawn(function()
