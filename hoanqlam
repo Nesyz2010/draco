@@ -2010,18 +2010,36 @@ local function orangePrecheckInventoriesBeforeSeat(seatIndex)
 
                 lastResetRetryAt = tick()
 
+                local requestedFruit = orangeNormalizeFruitName(
+                    plan.fruit and (
+                        plan.fruit.internal_name
+                        or plan.fruit.name
+                    )
+                )
+                local previousFruit = orangeNormalizeFruitName(
+                    orangeDuplicateCycleFruit or ""
+                )
+
+                -- Server chỉ trả remove_duplicate khi không tìm được plan trade.
+                -- Khi server chuyển sang một fruit trùng mới, mở khóa để xử lý
+                -- tiếp fruit đó. Nếu đã có plan trade thì nhánh này không chạy.
+                if requestedFruit ~= ""
+                    and requestedFruit ~= previousFruit then
+                    orangeDuplicateCycleCompleted = false
+                    orangeDuplicateResetKey = nil
+                end
+
                 if not orangeDuplicateCycleCompleted then
                     local removed =
                         orangeLoadAndResetDuplicate(plan.fruit)
 
                     if not removed then
                         warn(
-                            "[AUTO PRECHECK] Reset fruit trùng chưa thành công, sẽ thử lại."
+                            "[AUTO PRECHECK] Reset fruit trùng chưa thành công, sẽ thử lại:",
+                            requestedFruit
                         )
                     end
                 else
-                    -- Sau khi reset, tiếp tục gửi inventory mới cho tới khi
-                    -- server đổi khỏi remove_duplicate.
                     orangePostTradeInventory(orangeInventorySnapshot())
                 end
             end
@@ -2273,29 +2291,45 @@ local function orangeRunAutoTrade()
             local myUsername = string.lower(tostring(plr.Name or ""))
 
             if targetUsername == myUsername then
+                local requestedFruit = orangeNormalizeFruitName(
+                    plan.fruit and (
+                        plan.fruit.internal_name
+                        or plan.fruit.name
+                    )
+                )
+                local previousFruit = orangeNormalizeFruitName(
+                    orangeDuplicateCycleFruit or ""
+                )
+
+                if requestedFruit ~= ""
+                    and requestedFruit ~= previousFruit then
+                    orangeDuplicateCycleCompleted = false
+                    orangeDuplicateResetKey = nil
+                end
+
                 if orangeDuplicateCycleCompleted then
                     if getgenv().DracoFlowUI then
                         getgenv().DracoFlowUI:SetStatus("WAIT INVENTORY RECHECK")
                         getgenv().DracoFlowUI:SetSubStatus(
-                            "Đã xóa 1 fruit, đang chờ server kiểm tra lại"
+                            "Đã xử lý " .. tostring(requestedFruit)
+                            .. ", đang chờ server kiểm tra lại"
                         )
                     end
+                    orangePostTradeInventory(orangeInventorySnapshot())
                     task.wait(0.5)
                 else
                     if getgenv().DracoFlowUI then
-                    getgenv().DracoFlowUI:SetStatus("REMOVE DUPLICATE")
-                    getgenv().DracoFlowUI:SetSubStatus(
-                        "Đang xóa fruit trùng: "
-                        .. tostring(plan.fruit and plan.fruit.name or "?")
-                    )
-                end
+                        getgenv().DracoFlowUI:SetStatus("REMOVE DUPLICATE")
+                        getgenv().DracoFlowUI:SetSubStatus(
+                            "Không có plan trade; đang xóa fruit trùng: "
+                            .. tostring(plan.fruit and plan.fruit.name or "?")
+                        )
+                    end
 
                     local removed = orangeLoadAndResetDuplicate(plan.fruit)
                     if not removed then
                         warn("[AUTO TRADE] Xóa fruit trùng thất bại; chờ retry.")
                     end
-                    -- Không return. Cả hai acc tiếp tục poll cùng plan.
-                    -- Chỉ khi server trả action="trade" thì cả hai mới về ghế.
                     task.wait(0.8)
                 end
             end
