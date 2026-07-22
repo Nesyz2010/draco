@@ -925,6 +925,220 @@ do
         return result
     end
 
+    local function blueWaitForBoth(sessionTimeout)
+        local started = tick()
+
+        while tick() - started < (tonumber(sessionTimeout) or 120) do
+            local state = blueMatch()
+
+            if state and state.success then
+                local session = state.session or {}
+                local role = tostring(state.role or "")
+                local targetJob = tostring(session.job_id or "")
+
+                if role == "helper"
+                    and targetJob ~= ""
+                    and game.JobId ~= targetJob then
+
+                    local joinData = state.join or {}
+                    local joinFunction =
+                        getgenv().DracoOrangeJoinJob
+
+                    if type(joinFunction) == "function" then
+                        joinFunction(
+                            joinData.place_id or session.place_id,
+                            targetJob
+                        )
+                    end
+
+                    return false, state
+                end
+
+                blueHeartbeat("blue_waiting_both")
+
+                if targetJob ~= ""
+                    and game.JobId == targetJob
+                    and (
+                        session.status == "both_joined"
+                        or (
+                            session.requester_ready == true
+                            and session.helper_ready == true
+                        )
+                    ) then
+                    return true, state
+                end
+            end
+
+            task.wait(1)
+        end
+
+        return false, nil
+    end
+
+    local function bluePairLikeOrange()
+        blueRegister("blue_start")
+
+        local matched = blueMatch()
+
+        if not matched then
+            task.wait(2)
+            return nil
+        end
+
+        -- Acc thứ hai chỉ đứng chờ trong lúc requester đang tìm low server.
+        if matched.waiting == true
+            and matched.error == "requester_finding_low_server" then
+
+            if getgenv().DracoFlowUI then
+                getgenv().DracoFlowUI:SetStatus(
+                    "BLUE BELT • WAIT REQUESTER"
+                )
+                getgenv().DracoFlowUI:SetSubStatus(
+                    "Acc đầu đang tìm server low-player"
+                )
+            end
+
+            task.wait(1.5)
+            return nil
+        end
+
+        if not matched.success then
+            warn(
+                "[Blue Belt] Match chưa thành công:",
+                tostring(matched.error)
+            )
+            task.wait(2)
+            return nil
+        end
+
+        local session = matched.session or {}
+        local role = tostring(matched.role or "")
+        local sessionStatus = tostring(session.status or "")
+        local sessionJob = tostring(session.job_id or "")
+
+        -- REQUESTER:
+        -- Lần đầu session giữ JobId server cũ và status requester_relocating.
+        -- Chỉ requester được tìm low server.
+        if role == "requester"
+            and sessionStatus == "requester_relocating" then
+
+            if game.JobId == sessionJob then
+                if getgenv().DracoFlowUI then
+                    getgenv().DracoFlowUI:SetStatus(
+                        "BLUE BELT • FIND LOW SERVER"
+                    )
+                    getgenv().DracoFlowUI:SetSubStatus(
+                        "Requester đang tìm server ít người trước"
+                    )
+                end
+
+                blueHeartbeat("blue_requester_relocating")
+                blueHopLowestServer()
+                return nil
+            end
+
+            -- Script đã load lại trong JobId mới.
+            -- Gửi đúng signal để Python chốt JobId và mở queue helper.
+            if getgenv().DracoFlowUI then
+                getgenv().DracoFlowUI:SetStatus(
+                    "BLUE BELT • SYNC LOW SERVER"
+                )
+                getgenv().DracoFlowUI:SetSubStatus(
+                    "Đang cập nhật JobId mới lên API"
+                )
+            end
+
+            local synced = blueHeartbeat("requester_low_ready")
+            local syncedSession = synced and synced.session
+
+            if syncedSession
+                and syncedSession.status ~= "requester_relocating" then
+                matched = blueMatch() or matched
+                session = matched.session or syncedSession
+                sessionStatus = tostring(session.status or "")
+            else
+                task.wait(1)
+                return nil
+            end
+        end
+
+        -- Requester đã chốt low-server nhưng chưa có helper.
+        if role == "requester" and not session.helper then
+            if getgenv().DracoFlowUI then
+                getgenv().DracoFlowUI:SetStatus(
+                    "BLUE BELT • WAIT HELPER"
+                )
+                getgenv().DracoFlowUI:SetSubStatus(
+                    "Đã vào server low-player, đang gọi acc còn lại"
+                )
+            end
+
+            blueHeartbeat("blue_requester_waiting_helper")
+            task.wait(1)
+            return nil
+        end
+
+        -- HELPER:
+        -- Không được tự tìm server. Chỉ join đúng JobId requester.
+        if role == "helper" then
+            local joinData = matched.join or {}
+            local targetJob = tostring(
+                joinData.job_id
+                or session.job_id
+                or ""
+            )
+
+            if targetJob == "" then
+                task.wait(1)
+                return nil
+            end
+
+            if game.JobId ~= targetJob then
+                if getgenv().DracoFlowUI then
+                    getgenv().DracoFlowUI:SetStatus(
+                        "BLUE BELT • JOIN REQUESTER"
+                    )
+                    getgenv().DracoFlowUI:SetSubStatus(
+                        "Đang join đúng JobId của requester"
+                    )
+                end
+
+                local joinFunction =
+                    getgenv().DracoOrangeJoinJob
+
+                if type(joinFunction) == "function" then
+                    joinFunction(
+                        joinData.place_id or session.place_id,
+                        targetJob
+                    )
+                end
+
+                return nil
+            end
+
+            blueHeartbeat("blue_helper_joined")
+        else
+            blueHeartbeat("blue_requester_joined")
+        end
+
+        -- Chặn toàn bộ func Blue cho tới khi API xác nhận 2 acc cùng JobId.
+        local bothReady, fresh = blueWaitForBoth(120)
+
+        if not bothReady then
+            if getgenv().DracoFlowUI then
+                getgenv().DracoFlowUI:SetStatus(
+                    "BLUE BELT • WAIT BOTH ACCOUNTS"
+                )
+                getgenv().DracoFlowUI:SetSubStatus(
+                    "Chưa xác nhận đủ 2 acc trong cùng server"
+                )
+            end
+            return nil
+        end
+
+        return fresh or matched
+    end
+
     local function runBlueBelt()
         setCurrentBeltPhase("BLUE BELT")
 
@@ -932,127 +1146,29 @@ do
             return true
         end
 
-        local matched = blueMatch()
-
-        if not matched or not matched.success then
-            task.wait(3)
-            return false
-        end
-
-        -- Requester must hop to a low-player server before any
-        -- quest/drop/collect function is allowed to start.
-        if matched.role == "requester" then
-            local syncedJob = tostring(
-                matched.session
-                and matched.session.job_id
-                or ""
-            )
-
-            if matched.job_synced == true then
-                getgenv().BlueRequesterLowReady = true
-
-                warn(
-                    "[Blue Belt] Requester synced low-server JobId:",
-                    syncedJob ~= "" and syncedJob or game.JobId
-                )
-            elseif getgenv().BlueRequesterLowReady ~= true then
-                local pendingTarget =
-                    tostring(getgenv().BlueRequesterHopTarget or "")
-                local pendingAt =
-                    tonumber(getgenv().BlueRequesterHopAt) or 0
-
-                if pendingTarget ~= ""
-                    and tick() - pendingAt < 15 then
-                    warn(
-                        "[Blue Belt] Requester đang chờ teleport low server:",
-                        pendingTarget
-                    )
-                    return false
-                end
-
-                blueHopLowestServer()
-                return false
-            end
-        end
-
-        if matched.role == "helper" and matched.join then
-            local targetJob = tostring(matched.join.job_id or "")
-            local targetPlace = matched.join.place_id
-
-            warn(
-                "[Blue Belt] Helper server check | current:",
-                game.JobId,
-                "| target:",
-                targetJob
-            )
-
-            if targetJob ~= "" and game.JobId ~= targetJob then
-                if getgenv().BlueJoinPendingJob == targetJob
-                    and tick() - (
-                        getgenv().BlueJoinPendingAt or 0
-                    ) < 15 then
-                    return false
-                end
-
-                getgenv().BlueJoinPendingJob = targetJob
-                getgenv().BlueJoinPendingAt = tick()
-
-                local joinFunction =
-                    getgenv().DracoOrangeJoinJob
-
-                if type(joinFunction) == "function" then
-                    joinFunction(targetPlace, targetJob)
-                end
-
-                return false
-            end
-
-            -- Arrived at the authoritative requester server.
-            getgenv().BlueJoinPendingJob = nil
-            getgenv().BlueJoinPendingAt = 0
-        end
-
-        -- Hard gate: Blue Belt logic starts only after both accounts
-        -- are in the authoritative requester JobId.
-        local finalCheck = blueMatch()
-
-        if not finalCheck or not finalCheck.success then
+        local matched = bluePairLikeOrange()
+        if not matched then
             return false
         end
 
         local authoritativeJob = tostring(
-            finalCheck.session
-            and finalCheck.session.job_id
+            matched.session
+            and matched.session.job_id
             or ""
         )
 
-        if authoritativeJob ~= ""
-            and game.JobId ~= authoritativeJob then
-
-            if finalCheck.role == "helper"
-                and finalCheck.join then
-
-                local joinFunction =
-                    getgenv().DracoOrangeJoinJob
-
-                if type(joinFunction) == "function" then
-                    joinFunction(
-                        finalCheck.join.place_id,
-                        authoritativeJob
-                    )
-                end
-            end
-
+        if authoritativeJob == ""
+            or game.JobId ~= authoritativeJob then
             warn(
-                "[Blue Belt] Chưa cùng requester JobId | current:",
+                "[Blue Belt] Same-server gate chưa đạt | current:",
                 game.JobId,
                 "| target:",
                 authoritativeJob
             )
-
             return false
         end
 
+        -- Chỉ từ đây trở xuống Blue Belt func mới được phép hoạt động.
         blueHeartbeat("blue_same_server_ready")
         blueRequestQuest()
         blueState("quest_ready")
@@ -1094,24 +1210,22 @@ do
                 )
                 getgenv().DracoFlowUI:SetSubStatus(
                     "Owner: " .. tostring(owner)
-                    .. "\nCycle: " .. tostring(cycle)
+                    .. "\nPartner: " .. tostring(partner)
                 )
             end
 
             if phase == "waiting_helper"
                 or phase == "waiting_both_quest" then
-                task.wait(1)
+
+                blueRequestQuest()
+                blueState("quest_ready")
 
             elseif phase == "owner_random" and isOwner then
                 blueRunAction(function()
-                    toposition(Config.BLUE_DROP_POS)
-
-                    local tool = blueEquipFruit(true)
-                    if tool then
+                    if blueEquipFruit(true) then
                         blueState("owner_randomed")
                         return true
                     end
-
                     return false
                 end)
 
@@ -1122,7 +1236,6 @@ do
                         return true
                     end
 
-                    -- Fruit không xuất hiện hoặc đã mất.
                     blueState("fruit_lost")
                     return false
                 end)
@@ -1168,7 +1281,7 @@ do
                         has_belt = hasBlue,
                     })
 
-                    return true
+                    return hasBlue
                 end)
 
             elseif phase == "completed" then
@@ -1176,25 +1289,12 @@ do
                     blueState("release")
                     return true
                 end
-
-                -- Server says completed but local inventory has not
-                -- replicated yet; claim/check once more.
-                blueClaimOnce()
             end
 
-            local pollDelay = 1.75
-            if phase == "owner_random"
-                or phase == "owner_drop"
-                or phase == "partner_collect"
-                or phase == "partner_drop_back"
-                or phase == "owner_collect_back"
-                or phase == "both_claim" then
-                pollDelay = 0.75
-            end
-            task.wait(pollDelay + math.random() * 0.2)
+            task.wait(0.5)
         end
 
-        warn("[Blue Belt] Coordinator timeout.")
+        warn("[Blue Belt] Hết thời gian chạy Blue Belt.")
         return hasBelt(Config.BLUE_BELT)
     end
 
