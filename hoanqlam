@@ -1790,6 +1790,45 @@ local function orangeCancelAndClearTrade()
     end
 end
 
+local function orangePlanValueForUser(map, username)
+    if type(map) ~= "table" then
+        return nil
+    end
+
+    if map[username] ~= nil then
+        return map[username]
+    end
+
+    local wanted = string.lower(tostring(username or ""))
+    for key, value in pairs(map) do
+        if string.lower(tostring(key or "")) == wanted then
+            return value
+        end
+    end
+
+    return nil
+end
+
+local function orangeTradePlanIsComplete(plan)
+    if type(plan) ~= "table"
+        or tostring(plan.action or "") ~= "trade"
+        or plan.verified ~= true
+        or plan.receiver_capacity_checked ~= true then
+        return false
+    end
+
+    local items = orangePlanValueForUser(plan.items, plr.Name)
+    local value = tonumber(orangePlanValueForUser(plan.values, plr.Name))
+    local slots = tonumber(orangePlanValueForUser(plan.slot_counts, plr.Name))
+
+    return type(items) == "table"
+        and #items > 0
+        and value ~= nil
+        and value > 0
+        and slots ~= nil
+        and slots == #items
+end
+
 local function orangeAddPlannedItems(items)
     if type(items) ~= "table" or #items == 0 then
         return false
@@ -2069,8 +2108,7 @@ local function orangePrecheckInventoriesBeforeSeat(seatIndex)
                     verifyPlan and tostring(verifyPlan.action or "") or ""
 
                 if verifyAction == "trade"
-                    and verifyPlan.verified == true
-                    and verifyPlan.receiver_capacity_checked == true then
+                    and orangeTradePlanIsComplete(verifyPlan) then
 
                     orangeDuplicatePhaseFruit = nil
                     orangeDuplicateCycleCompleted = false
@@ -2091,6 +2129,15 @@ local function orangePrecheckInventoriesBeforeSeat(seatIndex)
                     orangeDuplicatePhaseSeat = nil
 
                     return true
+                end
+
+                if verifyAction == "trade" then
+                    warn(
+                        "[AUTO PRECHECK] Server trả trade nhưng plan thiếu items/value/slots. "
+                        .. "Hãy restart host bằng file balanced_trade_v2; đang gửi lại inventory."
+                    )
+                    orangePostTradeInventory(orangeInventorySnapshot())
+                    task.wait(1)
                 end
 
                 confirmedTradeOnce = false
@@ -2383,9 +2430,26 @@ local function orangeRunAutoTrade()
                 end
             end
 
-            local items = plan.items and plan.items[plr.Name]
-            local myValue = plan.values and plan.values[plr.Name] or 0
-            local mySlots = plan.slot_counts and plan.slot_counts[plr.Name] or 0
+            local items = orangePlanValueForUser(plan.items, plr.Name)
+            local myValue = tonumber(
+                orangePlanValueForUser(plan.values, plr.Name)
+            ) or 0
+            local mySlots = tonumber(
+                orangePlanValueForUser(plan.slot_counts, plr.Name)
+            ) or 0
+
+            if not orangeTradePlanIsComplete(plan) then
+                warn(
+                    "[AUTO TRADE] Bỏ qua plan trade không đầy đủ | plan_version:",
+                    tostring(plan.plan_version or "old"),
+                    "| value:", myValue,
+                    "| slots:", mySlots
+                )
+                orangePostTradeInventory(orangeInventorySnapshot())
+                orangeAutoTradeRunning = false
+                task.wait(1)
+                return
+            end
             warn(
                 "[AUTO TRADE] Trade plan ready | value:",
                 myValue,
