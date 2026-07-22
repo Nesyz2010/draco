@@ -291,6 +291,7 @@ if ORANGE_TENANT_ID == "default" then
 end
 
 ORANGE_STARTUP_JITTER = math.random() * 1.5
+ORANGE_TRADE_TEST_MODE = true -- no RequestQuest / ClaimQuest / belt short-circuit
 orangeSessionVersion = nil
 
 -- Mỗi cặp điểm drop trên server Python phải khớp với bảng này.
@@ -663,51 +664,18 @@ local function orangeResetTradeInventorySnapshot()
 end
 
 local function orangePrepareQuest()
+    -- TEST MODE: only move near Dojo. Do not RequestQuest or ClaimQuest.
     ensureReturnedToTikiBeforeDojo()
 
     if getgenv().DracoFlowUI then
-        getgenv().DracoFlowUI:SetStatus("REQUEST ORANGE BELT")
+        getgenv().DracoFlowUI:SetStatus("ORANGE TRADE TEST")
         getgenv().DracoFlowUI:SetSubStatus(
-            "Đang chuẩn bị nhiệm vụ Orange Belt trước khi trade"
+            "Test trade only: bỏ RequestQuest và ClaimQuest"
         )
     end
 
     toposition(Config.DOJO_POS)
     task.wait(0.6)
-
-    -- Chống crash: claim thử một lần trước.
-    -- Nếu đã có Orange Belt thì dừng luôn.
-    pcall(function()
-        local args = {
-            [1] = {
-                NPC = "Dojo Trainer",
-                Command = "ClaimQuest",
-            }
-        }
-        DragonQuestRemote:InvokeServer(unpackArgs(args))
-    end)
-
-    task.wait(0.5)
-
-    if hasBelt("Orange Belt") then
-        return true
-    end
-
-    -- Chỉ request quest trước trade.
-    local requestArgs = {
-        [1] = {
-            NPC = "Dojo Trainer",
-            Command = "RequestQuest",
-        }
-    }
-
-    local ok, result = pcall(function()
-        return DragonQuestRemote:InvokeServer(unpackArgs(requestArgs))
-    end)
-
-    warn("[Orange Belt] RequestQuest trước trade:", ok, result)
-    task.wait(1)
-
     return true
 end
 
@@ -2631,72 +2599,22 @@ local function orangeWaitTrade()
 end
 
 local function orangeClaimAfterTrade()
-    ensureReturnedToTikiBeforeDojo()
-
-    if getgenv().DracoFlowUI then
-        getgenv().DracoFlowUI:SetStatus("CLAIM ORANGE BELT")
-        getgenv().DracoFlowUI:SetSubStatus(
-            "Trade đã hoàn tất, đang nhận Orange Belt"
-        )
-    end
-
-    -- Chờ server game ghi nhận trade hoàn tất vào quest.
-    task.wait(3)
-
-    toposition(Config.DOJO_POS)
-    task.wait(0.8)
-
-    local started = tick()
-    local attempt = 0
-
-    while tick() - started < 30 do
-        if hasBelt("Orange Belt") then
-            warn("[Orange Belt] Đã xác nhận có Orange Belt.")
-            return true
-        end
-
-        attempt += 1
-
-        local claimArgs = {
-            [1] = {
-                NPC = "Dojo Trainer",
-                Command = "ClaimQuest",
-            }
-        }
-
-        local ok, result = pcall(function()
-            return DragonQuestRemote:InvokeServer(unpackArgs(claimArgs))
-        end)
-
-        warn(
-            "[Orange Belt] Claim sau trade | lần:",
-            attempt,
-            "| ok:",
-            ok,
-            "| result:",
-            result
-        )
-
-        task.wait(1.2)
-    end
-
-    warn("[Orange Belt] Hết thời gian claim nhưng chưa thấy Orange Belt.")
-    return hasBelt("Orange Belt")
+    -- TEST MODE: no belt claim.
+    return true
 end
 
 local function orangeFinishAndClaim()
-    local claimed = orangeClaimAfterTrade()
-
-    if claimed then
-        orangeRelease()
-        orangeSessionActive = false
-        return true
-    end
-
-    -- Chưa nhận được belt thì giữ session/state để vòng sau thử claim lại,
-    -- không request quest mới và không giải phóng quá sớm.
+    -- Trade finished: release the coordinator session so the test can run again.
+    orangeAutoTradeFinished = true
+    orangeAutoTradeRunning = false
+    orangeTradeCompletedSignal = false
+    orangeRelease()
     orangeSessionActive = false
-    return false
+    orangeSetStatus(
+        "ORANGE TRADE TEST COMPLETE",
+        "Trade đã xong; session đã release, không Request/Claim belt"
+    )
+    return true
 end
 
 local function orangeResumeSession(state)
@@ -2900,10 +2818,7 @@ local function orangeResumeSession(state)
 
     -- Cả requester và helper đều claim/request quest trước khi tới điểm drop.
     orangePrepareQuest()
-    if hasBelt("Orange Belt") then
-        orangeComplete()
-        return orangeFinishAndClaim()
-    end
+    -- TEST MODE: ignore existing Orange Belt and continue trade testing.
 
     local seatIndex = tonumber(playerState.seat_index)
     if not seatIndex or not ORANGE_SEATS[seatIndex] then
@@ -2990,9 +2905,6 @@ end
 local function runOrangeBelt()
     setCurrentBeltPhase("ORANGE BELT")
 
-    if hasBelt("Orange Belt") then
-        return true
-    end
     if orangeSessionActive or orangeTeleporting then
         return false
     end
@@ -3231,13 +3143,6 @@ task.spawn(function()
 
     while getgenv().VortexZOrangeRunnerToken
         == ORANGE_RUNNER_TOKEN do
-
-        if hasBelt("Orange Belt") then
-            getgenv().DracoFlowUI:SetStatus(
-                "ORANGE BELT COMPLETE"
-            )
-            return
-        end
 
         local runner = getgenv().DracoRunOrangeBelt
 
