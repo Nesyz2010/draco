@@ -1204,26 +1204,12 @@ local function orangeFindFruit(snapshot, target)
     return nil
 end
 
+-- Fruit trùng luôn được unstore/reset gần Dojo, không xử lý cạnh bàn trade.
+-- Tách nhẹ vị trí theo ghế để nhiều cặp không chồng hoàn toàn lên nhau.
 local function orangeGetDuplicateFarCFrame(seatIndex)
-    seatIndex = tonumber(seatIndex)
-    local seat = seatIndex and ORANGE_SEATS[seatIndex] or nil
-
-    if seat then
-        -- Alternate direction by seat so simultaneous pairs do not stack.
-        local side = (seatIndex % 2 == 0) and 1 or -1
-        return seat * CFrame.new(
-            side * 18,
-            ORANGE_DUPLICATE_FAR_HEIGHT,
-            ORANGE_DUPLICATE_FAR_DISTANCE
-        )
-    end
-
-    local _, _, hrp = getCharacter()
-    return hrp.CFrame * CFrame.new(
-        0,
-        ORANGE_DUPLICATE_FAR_HEIGHT,
-        ORANGE_DUPLICATE_FAR_DISTANCE
-    )
+    seatIndex = tonumber(seatIndex) or 1
+    local lane = ((seatIndex - 1) % 3) - 1
+    return Config.DOJO_POS * CFrame.new(lane * 7, 5, 12)
 end
 
 local function orangeLeaveTradeSeat(seatIndex)
@@ -1233,37 +1219,49 @@ local function orangeLeaveTradeSeat(seatIndex)
         OrangeTradeFunction:InvokeServer("cancel")
     end)
 
-    local _, hum, hrp = getCharacter()
+    local _, hum = getCharacter()
     hum.Sit = false
     hum.Jump = true
     task.wait(0.35)
 
-    local farTarget = orangeGetDuplicateFarCFrame(seatIndex)
-    local moved = toposition(farTarget)
+    local dojoResetTarget = orangeGetDuplicateFarCFrame(seatIndex)
 
-    local started = tick()
-    while tick() - started < ORANGE_DUPLICATE_MOVE_TIMEOUT do
-        local _, currentHum, currentRoot = getCharacter()
-        currentHum.Sit = false
+    orangeSetStatus(
+        "ORANGE BELT • RESET FRUIT",
+        "Đang về gần Dojo để unstore và reset fruit trùng"
+    )
 
-        if (currentRoot.Position - farTarget.Position).Magnitude <= 12
-            and not orangeTradeGuiIsOpen() then
-            orangeDuplicatePhaseOffSeat = true
-            orangeDuplicatePhaseSeat = seatIndex
-            orangeHeartbeat("duplicate_far_position_ready")
-            return true
-        end
+    -- Đi thẳng về khu Dojo. Không còn chờ Trade GUI biến mất vì GUI ẩn
+    -- có thể vẫn nằm trong PlayerGui và làm flow bị kẹt.
+    local moved = toposition(dojoResetTarget)
+    local _, currentHum, currentRoot = getCharacter()
+    currentHum.Sit = false
+    currentRoot.CFrame = dojoResetTarget
+    task.wait(0.6)
 
-        -- Keep the character away from the table while the GUI closes.
-        currentRoot.CFrame = farTarget
-        task.wait(0.25)
+    local distance = (currentRoot.Position - dojoResetTarget.Position).Magnitude
+    if moved or distance <= 20 then
+        orangeDuplicatePhaseOffSeat = true
+        orangeDuplicatePhaseSeat = seatIndex
+        orangeHeartbeat("duplicate_dojo_position_ready")
+
+        warn(
+            "[AUTO TRADE] Đã tới gần Dojo để reset fruit | ghế:",
+            seatIndex,
+            "| distance:",
+            distance
+        )
+
+        return true
     end
 
     warn(
-        "[AUTO TRADE] Không xác nhận được vị trí xử lý fruit xa ghế:",
+        "[AUTO TRADE] Không thể về gần Dojo để reset fruit | ghế:",
         seatIndex,
         "| moved:",
-        moved
+        moved,
+        "| distance:",
+        distance
     )
 
     return false
@@ -1445,11 +1443,10 @@ local function orangeLoadAndResetDuplicate(target)
 
     orangeHeartbeat("remote_remove_duplicate_" .. tostring(fruit.name))
 
-    -- Duplicate fruit cannot be handled at the trade table.
-    -- Always cancel, stand up, and move far from the assigned seat first.
+    -- Fruit trùng được xử lý gần Dojo: hủy trade, rời ghế, về Dojo rồi mới LoadFruit/reset.
     if not orangeLeaveTradeSeat(seatIndex) then
         warn(
-            "[AUTO PRECHECK] Không rời xa được ghế trước khi xử lý fruit:",
+            "[AUTO PRECHECK] Không về được Dojo trước khi xử lý fruit:",
             fruit.name
         )
         return finish(false)
@@ -1462,7 +1459,7 @@ local function orangeLoadAndResetDuplicate(target)
     end
 
     warn(
-        "[AUTO PRECHECK] Đã ra xa ghế, bắt đầu xử lý fruit trùng:",
+        "[AUTO PRECHECK] Đã tới gần Dojo, bắt đầu unstore/reset fruit trùng:",
         fruit.name
     )
 
@@ -1534,6 +1531,17 @@ local function orangeLoadAndResetDuplicate(target)
     newChar:WaitForChild("Humanoid", 15)
 
     task.wait(1.5)
+
+    -- Sau respawn luôn trở lại gần Dojo để tiếp tục precheck tại chỗ.
+    -- Chưa được đi tới ghế cho tới khi server trả plan trade hợp lệ.
+    local dojoResetTarget = orangeGetDuplicateFarCFrame(seatIndex)
+    pcall(function()
+        toposition(dojoResetTarget)
+        local _, respawnHum, respawnRoot = getCharacter()
+        respawnHum.Sit = false
+        respawnRoot.CFrame = dojoResetTarget
+    end)
+    task.wait(0.5)
 
     -- Không quay lại điểm drop nếu fruit vật lý vẫn còn sau respawn.
     if not orangeWaitUntilNoHeldFruit(8) then
@@ -1787,11 +1795,11 @@ local function orangePrecheckInventoriesBeforeSeat(seatIndex)
     if getgenv().DracoFlowUI then
         getgenv().DracoFlowUI:SetStatus("CHECK BOTH INVENTORIES")
         getgenv().DracoFlowUI:SetSubStatus(
-            "Hai acc đã kết nối, đang kiểm tra inventory trước khi vào ghế"
+            "Hai acc đã request Dojo, đứng gần Dojo để kiểm tra fruit trước khi trade"
         )
     end
 
-    -- Tuyệt đối chưa vào ghế trong giai đoạn này.
+    -- Hai acc đứng gần Dojo; tuyệt đối chưa vào ghế trong giai đoạn này.
     orangeDuplicatePhaseOffSeat = true
     orangeDuplicatePhaseSeat = seatIndex
 
@@ -1893,13 +1901,14 @@ local function orangePrecheckInventoriesBeforeSeat(seatIndex)
                     warn(
                         "[AUTO PRECHECK] Inventory 2 acc đã verify: "
                         .. "không lỗi receive-capacity, tỷ lệ hợp lệ. "
-                        .. "Quay lại ghế để tiếp tục trade."
+                        .. "Bắt đầu func trade và di chuyển tới ghế."
                     )
 
-                    if not orangeExitDuplicateWaitPhase() then
-                        warn("[AUTO PRECHECK] Không quay lại được ghế sau xử lý fruit.")
-                        return false
-                    end
+                    -- Precheck chỉ kiểm tra/reset fruit gần Dojo.
+                    -- Không tự quay lại ghế tại đây; orangeResumeSession sẽ
+                    -- gọi orangeGoSeat đúng một lần rồi mới bắt đầu trade.
+                    orangeDuplicatePhaseOffSeat = false
+                    orangeDuplicatePhaseSeat = nil
 
                     return true
                 end
