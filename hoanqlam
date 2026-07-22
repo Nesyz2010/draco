@@ -1,6 +1,6 @@
 --==============================================================
--- VORTEXZ ORANGE BELT • RE-EXTRACTED FROM ORIGINAL SOURCE
--- Includes the original API pair system and coordinated trade logic.
+-- VORTEXZ BLUE BELT • STANDALONE TEST
+-- Extracted from message (99).txt
 -- Run this same file on both accounts.
 --==============================================================
 
@@ -10,9 +10,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
 local Workspace = game:GetService("Workspace")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local plr = Players.LocalPlayer
 repeat task.wait() until plr
@@ -20,30 +18,89 @@ repeat task.wait() until plr.Character
 repeat task.wait() until plr:FindFirstChild("PlayerGui")
 
 local unpackArgs = table.unpack or unpack
+
 local rem = ReplicatedStorage
     :WaitForChild("Remotes")
     :WaitForChild("CommF_")
 
-local Net = ReplicatedStorage
-    :WaitForChild("Modules")
-    :WaitForChild("Net")
-
-local DragonQuestRemote =
-    Net:WaitForChild("RF/InteractDragonQuest")
-
--- Only this global is used for pairing/group separation.
+--==============================================================
+-- TEST CONFIG
+--==============================================================
 getgenv().DracoVortexZ_DB =
-    tostring(getgenv().DracoVortexZ_DB or "default")
+    tostring(getgenv().DracoVortexZ_DB or "blue_test_01")
 
 local Config = {
     TEAM = "Pirates",
     SPEED = 300,
+
+    BLUE_BELT = "Blue Belt",
+
     DOJO_POS = CFrame.new(
         5862.036621,
         1208.302124,
         872.385437
     ),
+
+    BLUE_DROP_POS = CFrame.new(
+        5865.6083984375,
+        1208.3153076171875,
+        875.4540405273438
+    ),
+
+    BLUE_PICK_RADIUS = 75,
+    BLUE_ACTION_TIMEOUT = 120,
+
+    -- Requester must enter a low-player server before Blue Belt starts.
+    BLUE_MAX_PUBLIC_PLAYERS = 8,
+    BLUE_SERVER_LIST_LIMIT = 100,
+    BLUE_SERVER_LIST_PAGES = 3,
+    BLUE_HOP_RETRY_DELAY = 4,
 }
+
+local ORANGE_SERVER_URL =
+    tostring(getgenv().BLUE_SERVER_URL
+        or "http://prem-eu5.bot-hosting.cloud:20142")
+
+local ORANGE_API_KEY =
+    tostring(getgenv().BLUE_API_KEY or "hoanglam123")
+
+local ORANGE_TENANT_ID =
+    tostring(getgenv().DracoVortexZ_DB or "blue_test_01")
+
+local ORANGE_INSTANCE_ID =
+    tostring(
+        getgenv().BlueInstanceId
+        or HttpService:GenerateGUID(false)
+    )
+
+getgenv().BlueInstanceId = ORANGE_INSTANCE_ID
+
+local orangeSessionVersion = nil
+local activeTween = nil
+
+--==============================================================
+-- BASIC UI FALLBACK
+--==============================================================
+if not getgenv().DracoFlowUI then
+    getgenv().DracoFlowUI = {
+        SetStatus = function(_, text)
+            warn("[STATUS]", tostring(text))
+        end,
+        SetSubStatus = function(_, text)
+            warn("[DETAIL]", tostring(text))
+        end,
+        SetProgress = function() end,
+    }
+end
+
+local function setCurrentBeltPhase(name)
+    getgenv().CurrentDojoBeltPhase =
+        tostring(name or "BLUE BELT")
+end
+
+local function ensureReturnedToTikiBeforeDojo()
+    return true
+end
 
 --==============================================================
 -- TEAM SELECT
@@ -63,13 +120,13 @@ if plr.Team == nil then
                     button.Position = UDim2.new(-4, 0, -5, 0)
                     button.BackgroundTransparency = 1
 
-                    VirtualInputManager:SendMouseButtonEvent(
-                        0, 0, 0, true, game, 1
-                    )
+                    game:GetService("VirtualInputManager")
+                        :SendMouseButtonEvent(0, 0, 0, true, game, 1)
+
                     task.wait(0.05)
-                    VirtualInputManager:SendMouseButtonEvent(
-                        0, 0, 0, false, game, 1
-                    )
+
+                    game:GetService("VirtualInputManager")
+                        :SendMouseButtonEvent(0, 0, 0, false, game, 1)
                 end)
             end
         end
@@ -79,35 +136,8 @@ if plr.Team == nil then
 end
 
 --==============================================================
--- UI FALLBACK
--- Silent fallback UI; no external debug console is created.
---==============================================================
-if not getgenv().DracoFlowUI then
-    getgenv().DracoFlowUI = {
-        SetStatus = function() end,
-        SetSubStatus = function() end,
-        SetProgress = function() end,
-    }
-end
-
-local function orangeSetStatus(title, detail)
-    local ui = getgenv().DracoFlowUI
-    if ui then
-        pcall(function()
-            ui:SetStatus(tostring(title or "ORANGE BELT"))
-            if detail then
-                ui:SetSubStatus(tostring(detail))
-            end
-        end)
-    end
-end
-
---==============================================================
 -- CHARACTER / MOVEMENT
--- Copied from the original VortexZ movement style.
 --==============================================================
-local activeTween
-
 local function getCharacter()
     local character = plr.Character or plr.CharacterAdded:Wait()
     local humanoid = character:WaitForChild("Humanoid")
@@ -122,9 +152,7 @@ local function toposition(pos)
 
     local character, humanoid, hrp = getCharacter()
 
-    if humanoid.Sit then
-        humanoid.Sit = false
-    end
+    humanoid.Sit = false
 
     for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -133,6 +161,7 @@ local function toposition(pos)
     end
 
     local tweenRoot = character:FindFirstChild("Root")
+
     if not tweenRoot then
         tweenRoot = Instance.new("Part")
         tweenRoot.Name = "Root"
@@ -145,6 +174,7 @@ local function toposition(pos)
     end
 
     tweenRoot.CFrame = hrp.CFrame
+
     local distance = (pos.Position - hrp.Position).Magnitude
 
     if distance <= 10 then
@@ -185,17 +215,8 @@ local function toposition(pos)
     return true
 end
 
-local function ensureReturnedToTikiBeforeDojo()
-    return true
-end
-
-local function setCurrentBeltPhase(name)
-    getgenv().CurrentDojoBeltPhase =
-        tostring(name or "ORANGE BELT")
-end
-
 --==============================================================
--- INVENTORY / BELT CHECK
+-- BLUE BELT INVENTORY CHECK
 --==============================================================
 local function normalizeItemName(value)
     local name = string.lower(tostring(value or ""))
@@ -204,14 +225,15 @@ local function normalizeItemName(value)
     return name
 end
 
-local function isOrangeBeltName(value)
+local function isBlueBeltName(value)
     local name = normalizeItemName(value)
-    return name == "orangebelt"
-        or name == "dojobeltorange"
+
+    return name == "bluebelt"
+        or name == "dojobeltblue"
 end
 
 local function hasBelt(beltName)
-    if tostring(beltName) ~= "Orange Belt" then
+    if tostring(beltName) ~= "Blue Belt" then
         return false
     end
 
@@ -228,11 +250,11 @@ local function hasBelt(beltName)
                     or item.DisplayName
                     or item.name
 
-                if isOrangeBeltName(actualName) then
+                if isBlueBeltName(actualName) then
                     return true
                 end
             elseif type(item) == "string"
-                and isOrangeBeltName(item) then
+                and isBlueBeltName(item) then
                 return true
             end
         end
@@ -244,7 +266,7 @@ local function hasBelt(beltName)
         end
 
         for _, object in ipairs(container:GetChildren()) do
-            if isOrangeBeltName(object.Name) then
+            if isBlueBeltName(object.Name) then
                 return true
             end
         end
@@ -256,66 +278,9 @@ local function hasBelt(beltName)
         or scan(plr.Character)
 end
 
-
-do
---==================================================
--- ORANGE BELT: API QUEUE + JOIN JOB + TRADE SEATS
---==================================================
-ORANGE_SERVER_URL = "http://prem-eu5.bot-hosting.cloud:20142"
-ORANGE_API_KEY = "hoanglam123"
-ORANGE_HTTP_RETRIES = 5
-ORANGE_HTTP_TIMEOUT = 12
-ORANGE_CIRCUIT_FAIL_LIMIT = 5
-ORANGE_CIRCUIT_RESET_SECONDS = 8
-ORANGE_CHECK_INTERVAL = 1
-ORANGE_TRADE_TIMEOUT = 300
-ORANGE_SERVER_LIST_LIMIT = 100
-ORANGE_SERVER_LIST_PAGES = 3
-ORANGE_HOP_RETRY_DELAY = 4
-ORANGE_JOIN_MAX_FAILURES = 3
-ORANGE_JOIN_VERIFY_SECONDS = 10
-ORANGE_TENANT_ID = tostring(
-    getgenv().DracoVortexZ_DB or "default"
-)
-ORANGE_INSTANCE_ID = tostring(
-    getgenv().DracoInstanceId
-    or HttpService:GenerateGUID(false)
-)
-getgenv().DracoInstanceId = ORANGE_INSTANCE_ID
-
-if ORANGE_TENANT_ID == "default" then
-    warn(
-        "[DRACO API] DracoVortexZ_DB đang là default. "
-        .. "Nhiều buyer dùng chung sẽ có nguy cơ ghép chéo acc."
-    )
-end
-
-ORANGE_STARTUP_JITTER = math.random() * 1.5
-ORANGE_TRADE_TEST_MODE = true -- no RequestQuest / ClaimQuest / belt short-circuit
-orangeSessionVersion = nil
-
--- Mỗi cặp điểm drop trên server Python phải khớp với bảng này.
-ORANGE_SEATS = {
-    [1] = CFrame.new(-12591.058594, 337.443481, -7544.756836),
-    [2] = CFrame.new(-12602.312500, 337.442780, -7544.756836),
-    [3] = CFrame.new(-12602.312500, 337.442780, -7556.756836),
-    [4] = CFrame.new(-12591.058594, 337.443481, -7556.756836),
-    [5] = CFrame.new(-12591.058594, 337.443481, -7568.756836),
-    [6] = CFrame.new(-12602.312500, 337.442780, -7568.756836),
-}
-
--- Both accounts must leave the trade table before duplicate-fruit handling.
-ORANGE_DUPLICATE_FAR_DISTANCE = 55
-ORANGE_DUPLICATE_FAR_HEIGHT = 12
-ORANGE_DUPLICATE_MOVE_TIMEOUT = 15
-
-orangeSessionActive = false
-orangeTeleporting = false
-orangeHttpBusy = false
-orangeHttpFailures = 0
-orangeCircuitOpenUntil = 0
-orangeApiDisabled = false
-
+--==============================================================
+-- HTTP API
+--==============================================================
 local function getHttpRequest()
     return request
         or http_request
@@ -323,489 +288,148 @@ local function getHttpRequest()
         or (http and http.request)
 end
 
-local function orangeApi(method, path, body)
-    if orangeApiDisabled then
-        return {
-            success = false,
-            error = "api_disabled_for_replaced_instance",
-        }
-    end
-
-    if tick() < orangeCircuitOpenUntil then
-        return {
-            success = false,
-            error = "api_circuit_open",
-            retry_after = math.ceil(
-                orangeCircuitOpenUntil - tick()
-            ),
-        }
-    end
-
+local function sharedApi(method, path, body)
     local httpRequest = getHttpRequest()
+
     if type(httpRequest) ~= "function" then
-        warn("[Orange Belt] Executor không hỗ trợ HTTP request.")
+        warn("[Blue Belt] Executor không hỗ trợ HTTP request.")
         return nil
     end
 
-    local waitStarted = tick()
-    while orangeHttpBusy do
-        if tick() - waitStarted > ORANGE_HTTP_TIMEOUT then
-            warn("[Orange Belt] HTTP queue timeout:", path)
-            return {
-                success = false,
-                error = "client_http_queue_timeout",
-            }
-        end
-        task.wait(0.05)
+    local ok, response = pcall(function()
+        return httpRequest({
+            Url = ORANGE_SERVER_URL .. path,
+            Method = method,
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["X-API-Key"] = ORANGE_API_KEY,
+                ["X-Instance-Id"] = ORANGE_INSTANCE_ID,
+                ["X-Tenant-Id"] = ORANGE_TENANT_ID,
+            },
+            Body = body
+                and HttpService:JSONEncode(body)
+                or nil,
+            Timeout = 12,
+        })
+    end)
+
+    if not ok or not response then
+        warn("[Blue Belt] HTTP lỗi:", path, response)
+        return nil
     end
 
-    orangeHttpBusy = true
+    local statusCode =
+        tonumber(response.StatusCode)
+        or tonumber(response.Status)
+        or 0
 
-    local function finish(value)
-        orangeHttpBusy = false
-        return value
-    end
+    local rawBody = response.Body or response.body or ""
 
-    for attempt = 1, ORANGE_HTTP_RETRIES do
-        local ok, response = pcall(function()
-            return httpRequest({
-                Url = ORANGE_SERVER_URL .. path,
-                Method = method,
-                Headers = {
-                    ["Content-Type"] = "application/json",
-                    ["X-API-Key"] = ORANGE_API_KEY,
-                    ["X-Instance-Id"] = ORANGE_INSTANCE_ID,
-                    ["X-Tenant-Id"] = ORANGE_TENANT_ID,
-                },
-                Body = body
-                    and HttpService:JSONEncode(body)
-                    or nil,
-                Timeout = ORANGE_HTTP_TIMEOUT,
-            })
-        end)
+    local decodedOk, decoded = pcall(function()
+        return HttpService:JSONDecode(rawBody)
+    end)
 
-        if ok and response then
-            local statusCode = tonumber(response.StatusCode)
-                or tonumber(response.Status)
-                or tonumber(response.status_code)
-                or 0
-            local responseBody =
-                response.Body or response.body or ""
-            local decodeOk, decoded = pcall(function()
-                return HttpService:JSONDecode(responseBody)
-            end)
-
-            if decodeOk and type(decoded) == "table" then
-                decoded._status_code = statusCode
-
-                if statusCode >= 200 and statusCode < 300 then
-                    orangeHttpFailures = 0
-
-                    local version =
-                        tonumber(decoded.session_version)
-                        or (
-                            type(decoded.session) == "table"
-                            and tonumber(decoded.session.version)
-                        )
-
-                    if version then
-                        orangeSessionVersion = version
-                    end
-
-                    return finish(decoded)
-                end
-
-                local apiError = tostring(decoded.error or "")
-
-                if apiError == "instance_replaced" then
-                    orangeApiDisabled = true
-                    orangeSessionActive = false
-
-                    if getgenv().DracoFlowUI then
-                        getgenv().DracoFlowUI:SetStatus(
-                            "API INSTANCE REPLACED"
-                        )
-                        getgenv().DracoFlowUI:SetSubStatus(
-                            "Acc này đang chạy ở tab khác; tab cũ đã dừng API"
-                        )
-                    end
-
-                    warn(
-                        "[Orange Belt] Tab này đã bị tab mới thay thế:",
-                        plr.Name
-                    )
-                    return finish(decoded)
-                end
-
-                local retryable =
-                    statusCode == 0
-                    or statusCode == 408
-                    or statusCode == 425
-                    or statusCode == 429
-                    or statusCode >= 500
-
-                if not retryable then
-                    warn(
-                        "[Orange Belt] API từ chối:",
-                        path,
-                        statusCode,
-                        apiError
-                    )
-                    return finish(decoded)
-                end
-
-                warn(
-                    "[Orange Belt] API tạm lỗi, retry:",
-                    path,
-                    statusCode,
-                    apiError,
-                    "| attempt:",
-                    attempt
-                )
-            else
-                warn(
-                    "[Orange Belt] Phản hồi không hợp lệ:",
-                    path,
-                    statusCode,
-                    tostring(responseBody)
-                )
-            end
-        else
-            warn(
-                "[Orange Belt] HTTP lỗi:",
-                path,
-                "| attempt:",
-                attempt,
-                tostring(response)
-            )
-        end
-
-        orangeHttpFailures = orangeHttpFailures + 1
-
-        if orangeHttpFailures >= ORANGE_CIRCUIT_FAIL_LIMIT then
-            orangeCircuitOpenUntil =
-                tick() + ORANGE_CIRCUIT_RESET_SECONDS
-
-            warn(
-                "[Orange Belt] API circuit open",
-                ORANGE_CIRCUIT_RESET_SECONDS,
-                "giây"
-            )
-            return finish({
-                success = false,
-                error = "api_circuit_open",
-                retry_after = ORANGE_CIRCUIT_RESET_SECONDS,
-            })
-        end
-
-        local backoff = math.min(
-            4,
-            0.5 * (2 ^ (attempt - 1))
+    if not decodedOk or type(decoded) ~= "table" then
+        warn(
+            "[Blue Belt] API response không hợp lệ:",
+            path,
+            statusCode,
+            rawBody
         )
-        task.wait(backoff + math.random() * 0.35)
+        return nil
     end
 
-    return finish(nil)
+    decoded._status_code = statusCode
+
+    local version =
+        tonumber(decoded.session_version)
+        or (
+            type(decoded.session) == "table"
+            and tonumber(decoded.session.version)
+        )
+
+    if version then
+        orangeSessionVersion = version
+    end
+
+    if statusCode < 200 or statusCode >= 300 then
+        warn(
+            "[Blue Belt] API từ chối:",
+            path,
+            statusCode,
+            tostring(decoded.error)
+        )
+    end
+
+    return decoded
 end
 
-local function orangePlayerData(status)
+getgenv().DracoOrangeApi = sharedApi
+
+local function bluePlayerData(status)
     return {
         username = plr.Name,
         user_id = tostring(plr.UserId),
         job_id = game.JobId,
         place_id = tostring(game.PlaceId),
         player_count = Players.NumPlayers,
-        status = status or "online",
+        status = status or "blue_online",
         instance_id = ORANGE_INSTANCE_ID,
         tenant_id = ORANGE_TENANT_ID,
     }
 end
 
-local function orangeRegister(status)
-    return orangeApi("POST", "/api/register", orangePlayerData(status))
-end
-
-local function orangeMatchRequest()
-    -- Atomic server-side match: acc đầu tạo request, acc kế tiếp claim ngay.
-    -- Tránh race condition khiến hai acc cùng trở thành requester.
-    return orangeApi("POST", "/api/match", orangePlayerData("matching"))
-end
-
-getgenv().OrangeExtractServerState = function()
-    return orangeApi(
-        "GET",
-        "/api/server-status?job_id="
-            .. HttpService:UrlEncode(game.JobId)
+local function blueRegister(status)
+    return sharedApi(
+        "POST",
+        "/api/register",
+        bluePlayerData(status)
     )
 end
 
-
-local function orangeReady()
-    return orangeApi("POST", "/api/ready", {
-        username = plr.Name,
-        instance_id = ORANGE_INSTANCE_ID,
-        session_version = orangeSessionVersion,
-    })
-end
-
-local function orangeHeartbeat(status)
-    return orangeApi("POST", "/api/heartbeat", orangePlayerData(status))
-end
-
-local function orangeCheck()
-    return orangeApi(
-        "GET",
-        "/api/check?username=" .. HttpService:UrlEncode(plr.Name)
-        .. "&instance_id=" .. HttpService:UrlEncode(ORANGE_INSTANCE_ID)
+local function blueHeartbeat(status)
+    return sharedApi(
+        "POST",
+        "/api/heartbeat",
+        bluePlayerData(status)
     )
 end
 
-local function orangeComplete()
-    return orangeApi("POST", "/api/complete", {
-        username = plr.Name,
-        instance_id = ORANGE_INSTANCE_ID,
-        session_version = orangeSessionVersion,
-    })
-end
+--==============================================================
+-- REQUESTER LOW-PLAYER SERVER
+-- Only requester uses this. Helper waits for the requester's JobId.
+--==============================================================
+local function blueHopLowestServer()
+    local httpRequest = getHttpRequest()
 
-local function orangeRelease()
-    return orangeApi("POST", "/api/release", {
-        username = plr.Name,
-        instance_id = ORANGE_INSTANCE_ID,
-        session_version = orangeSessionVersion,
-    })
-end
-
-local function orangeCancel(reason)
-    return orangeApi("POST", "/api/cancel", {
-        username = plr.Name,
-        instance_id = ORANGE_INSTANCE_ID,
-        session_version = orangeSessionVersion,
-        reason = reason or "client_cancelled",
-    })
-end
-
-
-local function orangePostTradeInventory(fruits)
-    return orangeApi("POST", "/api/trade-inventory", {
-        username = plr.Name,
-        fruits = fruits,
-        instance_id = ORANGE_INSTANCE_ID,
-        tenant_id = ORANGE_TENANT_ID,
-        session_version = orangeSessionVersion,
-    })
-end
-
-local function orangeGetTradePlan()
-    -- Python identifies the session from username + X-Tenant-Id.
-    -- Do not keep stale instance/session values in the query string.
-    return orangeApi(
-        "GET",
-        "/api/trade-plan?username="
-            .. HttpService:UrlEncode(plr.Name)
-    )
-end
-
-local function orangeRecoverMissingSession(context)
-    warn(
-        "[Orange Belt] Session bị mất tại",
-        tostring(context or "unknown"),
-        "- đang register/match lại"
-    )
-
-    orangeSessionActive = false
-    orangeAutoTradeRunning = false
-    orangeAutoTradeFinished = false
-    orangeSessionVersion = nil
-
-    local registered = orangeRegister("session_lost_rematch")
-    if not registered or registered.success ~= true then
-        warn("[Orange Belt] Register lại sau session_not_found thất bại.")
+    if type(httpRequest) ~= "function" then
+        warn("[Blue Belt] Không thể lấy server list: thiếu HTTP request.")
         return false
     end
-
-    local rematch = orangeMatchRequest()
-    if rematch and rematch.success == true then
-        local version = tonumber(rematch.session_version)
-            or (type(rematch.session) == "table"
-                and tonumber(rematch.session.version))
-        if version then
-            orangeSessionVersion = version
-        end
-        warn("[Orange Belt] Đã nhận session mới, vòng chính sẽ tiếp tục.")
-        return true
-    end
-
-    if rematch and rematch.hop_required == true then
-        warn(
-            "[Orange Belt] Rematch yêu cầu hop:",
-            tostring(rematch.error or "server_unavailable")
-        )
-        if getgenv().OrangeHopLowestServer then
-            getgenv().OrangeHopLowestServer()
-        end
-        return false
-    end
-
-    warn(
-        "[Orange Belt] Chưa rematch được:",
-        tostring(rematch and rematch.error or "unknown")
-    )
-    return false
-end
-
-local function orangeResetTradeInventorySnapshot()
-    return orangeApi("POST", "/api/trade-inventory-reset", {
-        username = plr.Name,
-        instance_id = ORANGE_INSTANCE_ID,
-        tenant_id = ORANGE_TENANT_ID,
-        session_version = orangeSessionVersion,
-    })
-end
-
-local function orangePrepareQuest()
-    -- TEST MODE: only move near Dojo. Do not RequestQuest or ClaimQuest.
-    ensureReturnedToTikiBeforeDojo()
-
-    if getgenv().DracoFlowUI then
-        getgenv().DracoFlowUI:SetStatus("ORANGE TRADE TEST")
-        getgenv().DracoFlowUI:SetSubStatus(
-            "Test trade only: bỏ RequestQuest và ClaimQuest"
-        )
-    end
-
-    toposition(Config.DOJO_POS)
-    task.wait(0.6)
-    return true
-end
-
-local orangeTradeGuiIsOpen
-
-local function orangeFindNearestTradeSeat(targetCFrame)
-    local bestSeat = nil
-    local bestDistance = math.huge
-
-    for _, object in ipairs(Workspace:GetDescendants()) do
-        if object:IsA("Seat") or object:IsA("VehicleSeat") then
-            local distance = (object.Position - targetCFrame.Position).Magnitude
-            if distance <= 18 and distance < bestDistance then
-                bestSeat = object
-                bestDistance = distance
-            end
-        end
-    end
-
-    return bestSeat
-end
-
-local function orangeGoSeat(seatIndex)
-    seatIndex = tonumber(seatIndex)
-
-    if type(ORANGE_SEATS) ~= "table" then
-        warn("[Orange Belt] ORANGE_SEATS chưa được khởi tạo.")
-        return false
-    end
-
-    local seatCFrame = seatIndex and ORANGE_SEATS[seatIndex] or nil
-    if not seatCFrame then
-        warn("[Orange Belt] Ghế không hợp lệ:", seatIndex)
-        return false
-    end
-
-    orangeSetStatus(
-        "ORANGE BELT • GO TRADE SEAT",
-        "Đang di chuyển tới ghế " .. tostring(seatIndex)
-    )
 
     if getgenv().DracoFlowUI then
         getgenv().DracoFlowUI:SetStatus(
-            "ORANGE BELT • GO TRADE SEAT"
+            "BLUE BELT • FIND LOW SERVER"
         )
         getgenv().DracoFlowUI:SetSubStatus(
-            "Đang tới ghế trade " .. tostring(seatIndex)
-        )
-    end
-
-    local seated = false
-
-    for attempt = 1, 10 do
-        local char, hum, hrp = getCharacter()
-
-        hum.Sit = false
-        toposition(seatCFrame * CFrame.new(0, 2, 0))
-        task.wait(0.35)
-
-        local physicalSeat = orangeFindNearestTradeSeat(seatCFrame)
-        if physicalSeat then
-            pcall(function()
-                physicalSeat:Sit(hum)
-            end)
-        else
-            -- Fallback: đặt sát mặt ghế để game tự nhận ngồi.
-            hrp.CFrame = seatCFrame * CFrame.new(0, 1.25, 0)
-        end
-
-        task.wait(0.55)
-
-        if hum.Sit or orangeTradeGuiIsOpen() then
-            seated = true
-            break
-        end
-
-        warn(
-            "[AUTO TRADE] Chưa ngồi được điểm drop",
-            seatIndex,
-            "| thử:",
-            attempt
-        )
-    end
-
-    if not seated then
-        warn("[AUTO TRADE] Không thể ngồi lại điểm drop:", seatIndex)
-        return false
-    end
-
-    local ready = orangeReady()
-    if not ready or ready.success ~= true then
-        warn("[AUTO TRADE] Gửi ready lại thất bại.")
-        return false
-    end
-
-    return true
-end
-
-orangeLastJoinTarget = nil
-orangeJoinAttemptToken = 0
-orangeJoinFailureCount = 0
-orangeJoinFailureTarget = nil
-orangeJoinRecoveryBusy = false
-
-getgenv().OrangeHopLowestServer = function()
-    local httpRequest = getHttpRequest()
-    if type(httpRequest) ~= "function" then
-        warn("[Orange Belt] Không thể lấy server list: thiếu HTTP request.")
-        return false
-    end
-
-    if getgenv().DracoFlowUI then
-        getgenv().DracoFlowUI:SetStatus("SERVER FULL")
-        getgenv().DracoFlowUI:SetSubStatus(
-            "Hết cặp điểm drop, đang tìm public server ít người nhất"
+            "Requester đang tìm public server ít người"
         )
     end
 
     local candidates = {}
     local cursor = nil
 
-    for page = 1, ORANGE_SERVER_LIST_PAGES do
+    for _ = 1, Config.BLUE_SERVER_LIST_PAGES do
         local url =
             "https://games.roblox.com/v1/games/"
             .. tostring(game.PlaceId)
             .. "/servers/Public?sortOrder=Asc&excludeFullGames=true&limit="
-            .. tostring(ORANGE_SERVER_LIST_LIMIT)
+            .. tostring(Config.BLUE_SERVER_LIST_LIMIT)
 
         if cursor and cursor ~= "" then
-            url = url .. "&cursor=" .. HttpService:UrlEncode(cursor)
+            url = url
+                .. "&cursor="
+                .. HttpService:UrlEncode(cursor)
         end
 
         local ok, response = pcall(function()
@@ -815,21 +439,22 @@ getgenv().OrangeHopLowestServer = function()
                 Headers = {
                     ["Content-Type"] = "application/json",
                 },
+                Timeout = 12,
             })
         end)
 
         if not ok or not response then
-            warn("[Orange Belt] Lấy public server thất bại:", response)
+            warn("[Blue Belt] Lấy server list thất bại:", response)
             break
         end
 
         local body = response.Body or response.body or ""
-        local decodeOk, decoded = pcall(function()
+        local decodedOk, decoded = pcall(function()
             return HttpService:JSONDecode(body)
         end)
 
-        if not decodeOk or type(decoded) ~= "table" then
-            warn("[Orange Belt] Server list JSON không hợp lệ.")
+        if not decodedOk or type(decoded) ~= "table" then
+            warn("[Blue Belt] Server list JSON không hợp lệ.")
             break
         end
 
@@ -841,7 +466,8 @@ getgenv().OrangeHopLowestServer = function()
             if id ~= ""
                 and id ~= game.JobId
                 and playing < maxPlayers
-                and playing < 8 then
+                and playing <= Config.BLUE_MAX_PUBLIC_PLAYERS then
+
                 table.insert(candidates, {
                     id = id,
                     playing = playing,
@@ -857,8 +483,8 @@ getgenv().OrangeHopLowestServer = function()
     end
 
     if #candidates == 0 then
-        warn("[Orange Belt] Không tìm thấy public server còn chỗ.")
-        task.wait(ORANGE_HOP_RETRY_DELAY)
+        warn("[Blue Belt] Không tìm thấy low-player server.")
+        task.wait(Config.BLUE_HOP_RETRY_DELAY)
         return false
     end
 
@@ -869,2337 +495,731 @@ getgenv().OrangeHopLowestServer = function()
         return a.playing < b.playing
     end)
 
-    -- Cả hai acc trong cùng tenant luôn ưu tiên cùng server ít người nhất.
-    -- Không chia theo UserId vì sẽ làm requester/helper bị tách sang hai JobId.
-    local selectedIndex = 1
-    local selected = candidates[selectedIndex]
+    -- Always select the same lowest server. Only requester calls this.
+    local selected = candidates[1]
 
     warn(
-        "[Orange Belt] Hop lowest server | JobId:",
+        "[Blue Belt] Requester hop low server | JobId:",
         selected.id,
         "| players:",
         selected.playing,
         "/",
-        selected.maxPlayers,
-        "| rank:",
-        selectedIndex
+        selected.maxPlayers
     )
 
-    orangeSessionActive = false
-    orangeTeleporting = true
-    orangeHeartbeat("hopping_low_player_" .. tostring(selected.playing))
+    blueHeartbeat("blue_requester_hopping_low")
 
-    local serverBrowser = ReplicatedStorage:FindFirstChild("__ServerBrowser")
+    local serverBrowser =
+        ReplicatedStorage:FindFirstChild("__ServerBrowser")
         or ReplicatedStorage:WaitForChild("__ServerBrowser", 10)
 
     if not serverBrowser then
-        orangeTeleporting = false
-        warn("[Orange Belt] Không tìm thấy __ServerBrowser để hop.")
+        warn("[Blue Belt] Không tìm thấy __ServerBrowser.")
         return false
     end
+
+    getgenv().BlueRequesterHopTarget = selected.id
+    getgenv().BlueRequesterHopAt = tick()
 
     local hopOk, hopResult = pcall(function()
-        return serverBrowser:InvokeServer("teleport", selected.id)
+        return serverBrowser:InvokeServer(
+            "teleport",
+            selected.id
+        )
     end)
-
-    if not hopOk then
-        orangeTeleporting = false
-        warn("[Orange Belt] Hop lowest server lỗi:", hopResult)
-        return false
-    end
-
-    return true
-end
-
-local function orangeRecoverFromDeadJoin(reason, failedJobId)
-    if orangeJoinRecoveryBusy then
-        return
-    end
-
-    orangeJoinRecoveryBusy = true
-    orangeTeleporting = false
-    orangeSessionActive = false
 
     warn(
-        "[Orange Belt] JobId không join được, reset pair:",
-        tostring(failedJobId),
-        "| reason:",
-        tostring(reason)
+        "[Blue Belt] Requester hop result:",
+        hopOk,
+        hopResult
     )
 
-    orangeSetStatus(
-        "ORANGE BELT • DEAD SERVER",
-        "JobId cũ không vào được, đang hủy pair và tìm low player"
-    )
-
-    -- Hủy session cũ để requester/helper không tiếp tục giữ JobId chết.
-    pcall(function()
-        orangeCancel(reason or "helper_join_failed")
-    end)
-
-    task.wait(0.8)
-
-    orangeJoinFailureCount = 0
-    orangeJoinFailureTarget = nil
-    orangeLastJoinTarget = nil
-
-    local hopped = false
-    if getgenv().OrangeHopLowestServer then
-        hopped = getgenv().OrangeHopLowestServer() == true
-    end
-
-    if not hopped then
-        warn("[Orange Belt] Chưa hop được low player; vòng chính sẽ thử lại.")
-        orangeTeleporting = false
-    end
-
-    task.delay(3, function()
-        orangeJoinRecoveryBusy = false
-    end)
+    return hopOk
 end
 
-local function orangeJoinJob(placeId, jobId)
-    local requestedJobId = tostring(jobId or "")
+getgenv().BlueHopLowestServer = blueHopLowestServer
 
-    if requestedJobId == "" or requestedJobId == "nil" then
-        warn("[Orange Belt] Không có JobId hợp lệ để join.")
+--==============================================================
+-- JOIN REQUESTER JOB
+--==============================================================
+local function joinJob(placeId, jobId)
+    jobId = tostring(jobId or "")
+
+    if jobId == "" or jobId == "nil" then
         return false
     end
 
-    if game.JobId == requestedJobId then
-        orangeTeleporting = false
-        orangeLastJoinTarget = requestedJobId
-        orangeJoinFailureTarget = nil
-        orangeJoinFailureCount = 0
+    if game.JobId == jobId then
+        blueHeartbeat("blue_joined_target")
         return true
     end
 
-    if orangeJoinFailureTarget ~= requestedJobId then
-        orangeJoinFailureTarget = requestedJobId
-        orangeJoinFailureCount = 0
-    end
+    blueHeartbeat("blue_helper_joining")
 
-    orangeJoinAttemptToken += 1
-    local myToken = orangeJoinAttemptToken
-    orangeLastJoinTarget = requestedJobId
-    orangeTeleporting = true
-    orangeHeartbeat("joining_requester")
-
-    if getgenv().DracoFlowUI then
-        getgenv().DracoFlowUI:SetStatus("JOIN REQUESTER")
-        getgenv().DracoFlowUI:SetSubStatus(
-            "Đang join JobId requester"
-            .. "\n" .. string.sub(requestedJobId, 1, 22) .. "..."
-            .. "\nFail: " .. tostring(orangeJoinFailureCount)
-                .. "/" .. tostring(ORANGE_JOIN_MAX_FAILURES)
-        )
-    end
-
-    warn(
-        "[Orange Belt] Join target mới | current:",
-        game.JobId,
-        "| target:",
-        requestedJobId,
-        "| token:",
-        myToken,
-        "| fail:",
-        orangeJoinFailureCount,
-        "/",
-        ORANGE_JOIN_MAX_FAILURES
-    )
-
-    local serverBrowser = ReplicatedStorage:FindFirstChild("__ServerBrowser")
+    local serverBrowser =
+        ReplicatedStorage:FindFirstChild("__ServerBrowser")
         or ReplicatedStorage:WaitForChild("__ServerBrowser", 10)
 
     if not serverBrowser then
-        orangeTeleporting = false
-        orangeHeartbeat("join_failed_no_browser")
-        orangeJoinFailureCount += 1
-
-        if orangeJoinFailureCount >= ORANGE_JOIN_MAX_FAILURES then
-            task.spawn(orangeRecoverFromDeadJoin, "missing_server_browser", requestedJobId)
-        end
+        warn("[Blue Belt] Không tìm thấy __ServerBrowser.")
         return false
     end
 
-    local oldJobId = game.JobId
     local ok, result = pcall(function()
-        return serverBrowser:InvokeServer("teleport", requestedJobId)
+        return serverBrowser:InvokeServer("teleport", jobId)
     end)
-
-    warn("[Orange Belt] Join result:", result)
-
-    if not ok then
-        orangeTeleporting = false
-        orangeHeartbeat("join_remote_error")
-        orangeJoinFailureCount += 1
-        warn("[Orange Belt] Join lỗi:", result)
-
-        if orangeJoinFailureCount >= ORANGE_JOIN_MAX_FAILURES then
-            task.spawn(orangeRecoverFromDeadJoin, "join_remote_error", requestedJobId)
-        end
-        return false
-    end
-
-    -- InvokeServer thường trả nil kể cả khi request teleport đã được gửi.
-    -- Xác nhận bằng JobId sau ORANGE_JOIN_VERIFY_SECONDS.
-    task.delay(ORANGE_JOIN_VERIFY_SECONDS, function()
-        if myToken ~= orangeJoinAttemptToken then
-            return
-        end
-
-        if game.JobId == requestedJobId then
-            orangeTeleporting = false
-            orangeJoinFailureCount = 0
-            orangeJoinFailureTarget = nil
-            orangeHeartbeat("joined_requester")
-            return
-        end
-
-        if game.JobId == oldJobId then
-            orangeTeleporting = false
-            orangeJoinFailureCount += 1
-            orangeHeartbeat("join_verify_failed")
-
-            warn(
-                "[Orange Belt] Không đổi JobId | fail:",
-                orangeJoinFailureCount,
-                "/",
-                ORANGE_JOIN_MAX_FAILURES,
-                "| target:",
-                requestedJobId
-            )
-
-            if orangeJoinFailureCount >= ORANGE_JOIN_MAX_FAILURES then
-                task.spawn(
-                    orangeRecoverFromDeadJoin,
-                    "join_verify_failed",
-                    requestedJobId
-                )
-            else
-                warn(
-                    "[Orange Belt] Sẽ thử lại JobId; quá giới hạn sẽ hủy pair và hop low player."
-                )
-            end
-        end
-    end)
-
-    return true
-end
-
---==================================================
--- AUTO REMOVE FRUIT WHEN RECEIVER CAPACITY IS FULL
--- Cảnh báo: LoadFruit + reset sẽ làm mất fruit đã lấy ra.
---==================================================
-ORANGE_DUPLICATE_RESET_ENABLED = true
-ORANGE_DUPLICATE_RESET_MAX = 5
-orangeDuplicateResetCount = 0
-orangeHandledCapacityFruits = {}
-
-local function normalizeTradeFruitName(value)
-    local name = tostring(value or "")
-    name = name:gsub('^%s+', ''):gsub('%s+$', '')
-    return name
-end
-
-local function getCapacityBlockedFruitName()
-    local pg = plr:FindFirstChild("PlayerGui")
-    if not pg then
-        return nil
-    end
-
-    for _, object in ipairs(pg:GetDescendants()) do
-        if object:IsA("TextLabel")
-            or object:IsA("TextButton")
-            or object:IsA("TextBox") then
-            local original = tostring(object.Text or "")
-            local lower = string.lower(original)
-
-            if string.find(lower, "cannot receive", 1, true)
-                and string.find(lower, "fruit capacity", 1, true) then
-                local quoted = original:match('"([^"]+)"')
-                if quoted and quoted ~= "" then
-                    return normalizeTradeFruitName(quoted)
-                end
-            end
-        end
-    end
-
-    return nil
-end
-
-local function findStoredFruitByDisplayName(displayName)
-    local target = string.lower(normalizeTradeFruitName(displayName))
-
-    local ok, inventory = pcall(function()
-        return rem:InvokeServer("getInventory")
-    end)
-
-    if not ok or type(inventory) ~= "table" then
-        return nil
-    end
-
-    for _, item in pairs(inventory) do
-        if type(item) == "table"
-            and tostring(item.Type) == "Blox Fruit" then
-            local shown = string.lower(tostring(item.DisplayName or ""))
-            local internal = tostring(item.Name or "")
-            local internalSimple = string.lower(internal:gsub('%-.*$', ''))
-
-            if shown == target or internalSimple == target then
-                return {
-                    DisplayName = tostring(item.DisplayName or displayName),
-                    InternalName = internal ~= "" and internal
-                        or (displayName .. "-" .. displayName),
-                    ItemId = tonumber(item.ItemId),
-                    Count = tonumber(item.Count) or 0,
-                }
-            end
-        end
-    end
-
-    return nil
-end
-
-local function resetAfterLoadingFruit(fruit)
-    if not fruit or fruit.InternalName == "" then
-        return false
-    end
-
-    if orangeDuplicateResetCount >= ORANGE_DUPLICATE_RESET_MAX then
-        warn("[AUTO TRADE] Đã đạt giới hạn reset fruit trùng.")
-        return false
-    end
-
-    orangeDuplicateResetCount += 1
 
     warn(
-        "[AUTO TRADE] Receiver đầy capacity, LoadFruit rồi reset:",
-        fruit.InternalName,
-        "| lần:",
-        orangeDuplicateResetCount
+        "[Blue Belt] Join requester JobId:",
+        jobId,
+        "| ok:",
+        ok,
+        "| result:",
+        result
     )
 
-    local loadedOk, loadedResult = pcall(function()
-        return rem:InvokeServer("LoadFruit", fruit.InternalName)
-    end)
-
-    if not loadedOk then
-        warn("[AUTO TRADE] LoadFruit lỗi:", loadedResult)
-        return false
-    end
-
-    task.wait(1)
-
-    local backpack = plr:FindFirstChildOfClass("Backpack")
-    local character = plr.Character
-    local loadedTool = (backpack and backpack:FindFirstChild(fruit.InternalName))
-        or (character and character:FindFirstChild(fruit.InternalName))
-
-    if not loadedTool then
-        warn("[AUTO TRADE] Không thấy fruit sau LoadFruit:", fruit.InternalName)
-        return false
-    end
-
-    orangeHeartbeat("reset_duplicate_fruit")
-
-    local oldCharacter = plr.Character
-    local humanoid = oldCharacter
-        and oldCharacter:FindFirstChildOfClass("Humanoid")
-
-    if not humanoid then
-        return false
-    end
-
-    humanoid.Health = 0
-
-    local newCharacter = plr.CharacterAdded:Wait()
-    newCharacter:WaitForChild("HumanoidRootPart", 15)
-    task.wait(2)
-
-    warn("[AUTO TRADE] Đã reset để xóa fruit trùng:", fruit.DisplayName)
-    return true
+    return ok
 end
 
-local function handleCapacityBlockedFruit()
-    if not ORANGE_DUPLICATE_RESET_ENABLED then
-        return false
-    end
+getgenv().DracoOrangeJoinJob = joinJob
 
-    local displayName = getCapacityBlockedFruitName()
-    if not displayName or orangeHandledCapacityFruits[displayName] then
-        return false
+--==============================================================
+-- HEARTBEAT
+--==============================================================
+task.spawn(function()
+    while task.wait(2) do
+        pcall(function()
+            blueHeartbeat("blue_running")
+        end)
     end
+end)
 
-    local fruit = findStoredFruitByDisplayName(displayName)
-    if not fruit or fruit.Count <= 0 then
-        return false
-    end
-
-    orangeHandledCapacityFruits[displayName] = true
-    return resetAfterLoadingFruit(fruit)
-end
+blueRegister("blue_startup")
 
 
 --==================================================
--- AUTO TRADE COORDINATED BY PYTHON SERVER
--- Both accounts upload inventory; server removes duplicates one at a time,
--- then returns a rare/high-value combination within the 40% value rule.
+-- BLUE BELT: TWO ACCOUNT DROP / COLLECT / BOTH CLAIM
 --==================================================
-OrangeTradeFunction = ReplicatedStorage
-    :WaitForChild("Remotes")
-    :WaitForChild("TradeFunction")
+do
+    local BlueNet = ReplicatedStorage
+        :WaitForChild("Modules")
+        :WaitForChild("Net")
+        :WaitForChild("RF/InteractDragonQuest")
 
-ORANGE_TRADE_OPEN_TIMEOUT = 20
-ORANGE_TRADE_PLAN_TIMEOUT = 90
-ORANGE_TRADE_ADD_DELAY = 0.55
-orangeAutoTradeRunning = false
-orangeAutoTradeFinished = false
+    local BlueRuntime = {
+        actionBusy = false,
+        lastPhase = "",
+        lastCycle = -1,
+    }
 
-orangeTradeGuiIsOpen = function()
-    local pg = plr:FindFirstChild("PlayerGui")
-    if not pg then return false end
-    for _, object in ipairs(pg:GetDescendants()) do
-        if object:IsA("TextLabel") or object:IsA("TextButton") then
-            if string.find(string.lower(tostring(object.Text or "")), "treasure trade", 1, true) then
-                return true
-            end
+    local function blueApi(method, path, body)
+        local api = getgenv().DracoOrangeApi
+        if type(api) ~= "function" then
+            warn("[Blue Belt] Shared HTTP API chưa sẵn sàng.")
+            return nil
         end
-    end
-    return false
-end
-
-local function orangeInventorySnapshot()
-    local ok, inventory = pcall(function()
-        return rem:InvokeServer("getInventory")
-    end)
-    if not ok or type(inventory) ~= "table" then
-        warn("[AUTO TRADE] Không đọc được inventory:", inventory)
-        return {}
+        return api(method, path, body)
     end
 
-    local fruits = {}
-    for _, item in pairs(inventory) do
-        if type(item) == "table"
-            and tostring(item.Type) == "Blox Fruit"
-            and tonumber(item.ItemId)
-            and tonumber(item.Count or 0) > 0 then
-            table.insert(fruits, {
-                name = tostring(item.DisplayName or item.Name or "Unknown"),
-                internal_name = tostring(item.Name or ""),
-                item_id = tonumber(item.ItemId),
-                value = tonumber(item.Value) or 0,
-                count = tonumber(item.Count) or 1,
-            })
+    local function blueState(action, extra)
+        local suffix = "?username="
+            .. HttpService:UrlEncode(plr.Name)
+            .. "&instance_id="
+            .. HttpService:UrlEncode(ORANGE_INSTANCE_ID)
+
+        if action then
+            local body = extra or {}
+            body.action = action
+            body.instance_id = ORANGE_INSTANCE_ID
+            body.session_version = orangeSessionVersion
+            return blueApi(
+                "POST",
+                "/api/blue-state" .. suffix,
+                body
+            )
         end
+
+        return blueApi("GET", "/api/blue-state" .. suffix)
     end
-    return fruits
-end
 
-local function orangeFindFruit(snapshot, target)
-    if type(target) ~= "table" then return nil end
-    local targetId = tonumber(target.item_id)
-    local targetName = string.lower(tostring(target.name or ""))
-    for _, fruit in ipairs(snapshot) do
-        if tonumber(fruit.item_id) == targetId
-            or string.lower(tostring(fruit.name)) == targetName then
-            return fruit
-        end
+    local function blueMatch()
+        return blueApi("POST", "/api/blue-match", {
+            username = plr.Name,
+            user_id = tostring(plr.UserId),
+            job_id = game.JobId,
+            place_id = tostring(game.PlaceId),
+            instance_id = ORANGE_INSTANCE_ID,
+            tenant_id = ORANGE_TENANT_ID,
+        })
     end
-    return nil
-end
 
--- Fruit trùng luôn được unstore/reset gần Dojo, không xử lý cạnh bàn trade.
--- Tách nhẹ vị trí theo ghế để nhiều cặp không chồng hoàn toàn lên nhau.
-local function orangeGetDuplicateFarCFrame(seatIndex)
-    seatIndex = tonumber(seatIndex) or 1
-    local lane = ((seatIndex - 1) % 3) - 1
-    return Config.DOJO_POS * CFrame.new(lane * 7, 5, 12)
-end
+    local function blueInvokeQuest(command)
+        local args = {
+            {
+                NPC = "Dojo Trainer",
+                Command = command,
+            }
+        }
 
-local function orangeLeaveTradeSeat(seatIndex)
-    seatIndex = tonumber(seatIndex)
-
-    pcall(function()
-        OrangeTradeFunction:InvokeServer("cancel")
-    end)
-
-    local _, hum = getCharacter()
-    hum.Sit = false
-    hum.Jump = true
-    task.wait(0.35)
-
-    local dojoResetTarget = orangeGetDuplicateFarCFrame(seatIndex)
-
-    orangeSetStatus(
-        "ORANGE BELT • RESET FRUIT",
-        "Đang về gần Dojo để unstore và reset fruit trùng"
-    )
-
-    -- Đi thẳng về khu Dojo. Không còn chờ Trade GUI biến mất vì GUI ẩn
-    -- có thể vẫn nằm trong PlayerGui và làm flow bị kẹt.
-    local moved = toposition(dojoResetTarget)
-    local _, currentHum, currentRoot = getCharacter()
-    currentHum.Sit = false
-    currentRoot.CFrame = dojoResetTarget
-    task.wait(0.6)
-
-    local distance = (currentRoot.Position - dojoResetTarget.Position).Magnitude
-    if moved or distance <= 20 then
-        orangeDuplicatePhaseOffSeat = true
-        orangeDuplicatePhaseSeat = seatIndex
-        orangeHeartbeat("duplicate_dojo_position_ready")
+        local ok, result = pcall(function()
+            return BlueNet:InvokeServer(unpackArgs(args))
+        end)
 
         warn(
-            "[AUTO TRADE] Đã tới gần Dojo để reset fruit | ghế:",
-            seatIndex,
-            "| distance:",
-            distance
+            "[Blue Belt]",
+            command,
+            "| ok:",
+            ok,
+            "| result:",
+            result
         )
 
+        return ok, result
+    end
+
+    local function blueRequestQuest()
+        setCurrentBeltPhase("BLUE BELT")
+        ensureReturnedToTikiBeforeDojo()
+
+        if getgenv().DracoFlowUI then
+            getgenv().DracoFlowUI:SetStatus(
+                "BLUE BELT • REQUEST QUEST"
+            )
+            getgenv().DracoFlowUI:SetSubStatus(
+                "Đang request nhiệm vụ và chờ acc còn lại"
+            )
+        end
+
+        toposition(Config.DOJO_POS)
+        task.wait(0.6)
+
+        blueInvokeQuest("ClaimQuest")
+        task.wait(0.5)
+
+        if hasBelt(Config.BLUE_BELT) then
+            return true
+        end
+
+        blueInvokeQuest("RequestQuest")
+        task.wait(1)
         return true
     end
 
-    warn(
-        "[AUTO TRADE] Không thể về gần Dojo để reset fruit | ghế:",
-        seatIndex,
-        "| moved:",
-        moved,
-        "| distance:",
-        distance
-    )
-
-    return false
-end
-
-local function orangeReturnToAssignedSeat(seatIndex)
-    seatIndex = tonumber(seatIndex)
-    if not seatIndex then
-        warn("[AUTO TRADE] Không có seat_index để quay lại.")
-        return false
-    end
-
-    if getgenv().DracoFlowUI then
-        getgenv().DracoFlowUI:SetStatus("RETURN TRADE SEAT")
-        getgenv().DracoFlowUI:SetSubStatus(
-            "Đã reset fruit, đang quay lại điểm drop " .. tostring(seatIndex)
-        )
-    end
-
-    local ok = orangeGoSeat(seatIndex)
-    if not ok then
-        warn("[AUTO TRADE] Quay lại điểm drop thất bại:", seatIndex)
-        return false
-    end
-
-    local started = tick()
-    while not orangeTradeGuiIsOpen() and tick() - started < 20 do
-        -- Hai acc có thể chưa đồng thời ngồi lại; cứ ép lại điểm drop định kỳ.
-        if math.floor(tick() - started) % 3 == 0 then
-            local physicalSeat = orangeFindNearestTradeSeat(ORANGE_SEATS[seatIndex])
-            local _, hum, hrp = getCharacter()
-            if physicalSeat and not hum.Sit then
-                pcall(function()
-                    physicalSeat:Sit(hum)
-                end)
-            elseif not physicalSeat and not hum.Sit then
-                hrp.CFrame = ORANGE_SEATS[seatIndex] * CFrame.new(0, 1.25, 0)
-            end
+    local function blueIsFruitTool(tool)
+        if not tool or not tool:IsA("Tool") then
+            return false
         end
-        task.wait(0.4)
+
+        return tool:FindFirstChild("Fruit") ~= nil
+            or tool:FindFirstChild("EatRemote", true) ~= nil
+            or string.find(
+                string.lower(tool.Name),
+                "fruit",
+                1,
+                true
+            ) ~= nil
     end
 
-    if not orangeTradeGuiIsOpen() then
-        warn("[AUTO TRADE] Đã về điểm drop nhưng cửa sổ trade chưa mở.")
-        return false
-    end
-
-    orangeReady()
-    task.wait(0.5)
-    return true
-end
-
-orangeDuplicateResetBusy = false
-orangeDuplicateCycleCompleted = false
-orangeDuplicateCycleFruit = nil
-orangeDuplicateResetKey = nil
-orangeDuplicateResetStartedAt = 0
-
-local function orangeFindHeldFruitTool()
-    local character = plr.Character
-    local backpack = plr:FindFirstChildOfClass("Backpack")
-
-    local function scan(container)
+    local function blueFindFruitTool(container)
         if not container then
             return nil
         end
 
         for _, tool in ipairs(container:GetChildren()) do
-            if tool:IsA("Tool") then
-                local tooltip = string.lower(tostring(tool.ToolTip or ""))
-                local name = string.lower(tostring(tool.Name or ""))
-
-                if tooltip == "blox fruit"
-                    or string.find(name, " fruit", 1, true)
-                    or string.find(name, "-", 1, true) then
-                    return tool
-                end
+            if blueIsFruitTool(tool) then
+                return tool
             end
         end
 
         return nil
     end
 
-    return scan(character) or scan(backpack)
-end
+    local function blueHasHeldFruit()
+        return blueFindFruitTool(plr.Character)
+            or blueFindFruitTool(
+                plr:FindFirstChildOfClass("Backpack")
+            )
+    end
 
-local function orangeWaitUntilNoHeldFruit(timeout)
-    local started = tick()
-    while tick() - started < (tonumber(timeout) or 10) do
-        if not orangeFindHeldFruitTool() then
-            return true
+    local function blueEquipFruit(allowRandom)
+        local char, hum = getCharacter()
+        local backpack = plr:FindFirstChildOfClass("Backpack")
+        local tool = blueFindFruitTool(char)
+            or blueFindFruitTool(backpack)
+
+        if not tool and allowRandom then
+            if getgenv().DracoFlowUI then
+                getgenv().DracoFlowUI:SetStatus(
+                    "BLUE BELT • RANDOM FRUIT"
+                )
+                getgenv().DracoFlowUI:SetSubStatus(
+                    "Acc này là fruit owner, đang random một fruit"
+                )
+            end
+
+            pcall(function()
+                rem:InvokeServer("Cousin", "Buy")
+            end)
+
+            task.wait(1)
+
+            for _ = 1, 5 do
+                tool = blueFindFruitTool(backpack)
+                    or blueFindFruitTool(char)
+                if tool then
+                    break
+                end
+                task.wait(0.5)
+            end
         end
-        task.wait(0.25)
-    end
-    return orangeFindHeldFruitTool() == nil
-end
 
-local function orangeNormalizeFruitName(value)
-    local name = string.lower(tostring(value or ""))
+        if not tool then
+            return nil
+        end
 
-    name = name:gsub("%-", " ")
-    name = name:gsub(" fruit", "")
-    name = name:gsub("%s+", " ")
-    name = name:gsub("^%s+", "")
-    name = name:gsub("%s+$", "")
+        if tool.Parent ~= char then
+            hum:EquipTool(tool)
+            task.wait(1)
+        end
 
-    -- Buddha-Buddha -> Buddha
-    local first, second = name:match("^([^%s]+)%s+([^%s]+)$")
-    if first and second and first == second then
-        name = first
+        return blueFindFruitTool(char)
     end
 
-    return name
-end
+    local function blueFindGroundFruit()
+        local center = Config.BLUE_DROP_POS.Position
+        local nearest = nil
+        local nearestDistance = math.huge
 
-local function orangeLoadAndResetDuplicate(target)
-    local targetKey = orangeNormalizeFruitName(
-        type(target) == "table"
-            and (target.internal_name or target.name)
-            or target
-    )
+        for _, item in ipairs(Workspace:GetChildren()) do
+            local handle = item:FindFirstChild("Handle")
+            local looksFruit =
+                item:IsA("Tool")
+                or item:FindFirstChild("Fruit") ~= nil
+                or item:FindFirstChild("EatRemote", true) ~= nil
+                or string.find(
+                    string.lower(item.Name),
+                    "fruit",
+                    1,
+                    true
+                ) ~= nil
 
-    -- Mỗi cycle chỉ được xóa đúng 1 fruit.
-    if orangeDuplicateCycleCompleted then
-        warn(
-            "[AUTO TRADE] Cycle này đã xóa 1 fruit:",
-            tostring(orangeDuplicateCycleFruit),
-            "| không xóa thêm."
-        )
+            if handle and looksFruit then
+                local distance =
+                    (handle.Position - center).Magnitude
+
+                if distance <= Config.BLUE_PICK_RADIUS
+                    and distance < nearestDistance then
+                    nearest = item
+                    nearestDistance = distance
+                end
+            end
+        end
+
+        return nearest
+    end
+
+    local function blueDropHeldFruit()
+        toposition(Config.BLUE_DROP_POS)
+        task.wait(0.5)
+
+        local tool = blueEquipFruit(false)
+        if not tool then
+            warn("[Blue Belt] Không có fruit trong tay để drop.")
+            return false
+        end
+
+        local remote = tool:FindFirstChild("EatRemote", true)
+        if not remote then
+            return false
+        end
+
+        -- Giữ delay drop từ source cũ.
+        task.wait(1.5)
+
+        local ok, result = pcall(function()
+            return remote:InvokeServer("Drop")
+        end)
+
+        warn("[Blue Belt] Drop:", tool.Name, ok, result)
+
+        if not ok then
+            return false
+        end
+
+        local started = tick()
+        while tick() - started < 8 do
+            if blueFindGroundFruit() then
+                return true
+            end
+            task.wait(0.25)
+        end
+
         return false
     end
 
-    -- Chặn nhiều coordinator cùng gọi LoadFruit/reset một lúc.
-    if orangeDuplicateResetBusy then
-        warn(
-            "[AUTO TRADE] Reset duplicate đang chạy:",
-            tostring(orangeDuplicateResetKey)
-        )
+    local function blueCollectFruit()
+        toposition(Config.BLUE_DROP_POS)
+
+        local started = tick()
+
+        while tick() - started < 15 do
+            if blueHasHeldFruit() then
+                return true
+            end
+
+            local item = blueFindGroundFruit()
+
+            if item then
+                local handle = item:FindFirstChild("Handle")
+                if handle then
+                    toposition(
+                        handle.CFrame * CFrame.new(0, 2, 0)
+                    )
+                    task.wait(0.5)
+
+                    if firetouchinterest then
+                        local _, _, root = getCharacter()
+                        pcall(function()
+                            firetouchinterest(root, handle, 0)
+                            task.wait()
+                            firetouchinterest(root, handle, 1)
+                        end)
+                    end
+
+                    task.wait(0.8)
+
+                    if blueHasHeldFruit() then
+                        return true
+                    end
+                end
+            end
+
+            task.wait(0.25)
+        end
+
         return false
     end
 
-    -- Chặn cùng một fruit bị gọi lại quá nhanh sau respawn.
-    if orangeDuplicateResetKey == targetKey
-        and tick() - orangeDuplicateResetStartedAt < 8 then
-        warn("[AUTO TRADE] Bỏ qua duplicate gọi lặp:", targetKey)
-        return false
+    local function blueClaimOnce()
+        toposition(Config.DOJO_POS)
+        task.wait(0.6)
+        blueInvokeQuest("ClaimQuest")
+        task.wait(1)
+        return hasBelt(Config.BLUE_BELT)
     end
 
-    orangeDuplicateResetBusy = true
-    orangeDuplicateResetKey = targetKey
-    orangeDuplicateResetStartedAt = tick()
+    local function blueRunAction(callback)
+        if BlueRuntime.actionBusy then
+            return false
+        end
 
-    local function finish(result)
-        orangeDuplicateResetBusy = false
+        BlueRuntime.actionBusy = true
+        local ok, result = pcall(callback)
+        BlueRuntime.actionBusy = false
+
+        if not ok then
+            warn("[Blue Belt] Action runtime error:", result)
+            return false
+        end
+
         return result
     end
 
-    local stateBefore = orangeCheck()
-    local playerState = stateBefore and stateBefore.player
-    local seatIndex = playerState and tonumber(playerState.seat_index)
+    local function runBlueBelt()
+        setCurrentBeltPhase("BLUE BELT")
 
-    local snapshot = orangeInventorySnapshot()
-    local fruit = orangeFindFruit(snapshot, target)
-
-    if not fruit then
-        warn("[AUTO TRADE] Fruit trùng đã không còn trong inventory.")
-        orangeResetTradeInventorySnapshot()
-        orangePostTradeInventory(snapshot)
-        return finish(true)
-    end
-
-    warn(
-        "[AUTO TRADE] Chuẩn bị xóa fruit trùng:",
-        fruit.name,
-        fruit.internal_name,
-        "| điểm drop:",
-        seatIndex
-    )
-
-    orangeHeartbeat("remote_remove_duplicate_" .. tostring(fruit.name))
-
-    -- Fruit trùng được xử lý gần Dojo: hủy trade, rời ghế, về Dojo rồi mới LoadFruit/reset.
-    if not orangeLeaveTradeSeat(seatIndex) then
-        warn(
-            "[AUTO PRECHECK] Không về được Dojo trước khi xử lý fruit:",
-            fruit.name
-        )
-        return finish(false)
-    end
-
-    local char = plr.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then
-        return finish(false)
-    end
-
-    warn(
-        "[AUTO PRECHECK] Đã tới gần Dojo, bắt đầu unstore/reset fruit trùng:",
-        fruit.name
-    )
-
-    -- Nếu lần LoadFruit trước đã tạo fruit vật lý nhưng chưa reset,
-    -- tuyệt đối không LoadFruit thêm lần nữa. Reset fruit đang cầm trước.
-    local alreadyHeld = orangeFindHeldFruitTool()
-
-    if alreadyHeld then
-        warn(
-            "[AUTO TRADE] Đã có fruit vật lý đang cầm:",
-            alreadyHeld.Name,
-            "| reset luôn, không gọi LoadFruit thêm."
-        )
-    else
-        orangeHeartbeat("load_duplicate_" .. tostring(fruit.name))
-
-        local ok, result = pcall(function()
-            return rem:InvokeServer("LoadFruit", fruit.internal_name)
-        end)
-
-        if not ok then
-            warn("[AUTO TRADE] LoadFruit lỗi:", result)
-            orangeDuplicatePhaseOffSeat = true
-            orangeDuplicatePhaseSeat = seatIndex
-            return finish(false)
-        end
-
-        -- Chỉ gọi LoadFruit một lần rồi chờ tool xuất hiện.
-        local loadedTool = nil
-        local loadStarted = tick()
-
-        while tick() - loadStarted < 6 do
-            loadedTool = orangeFindHeldFruitTool()
-            if loadedTool then
-                break
-            end
-            task.wait(0.2)
-        end
-
-        if not loadedTool then
-            warn(
-                "[AUTO TRADE] LoadFruit chưa tạo fruit vật lý:",
-                fruit.internal_name,
-                "| result:",
-                result
-            )
-            orangeDuplicatePhaseOffSeat = true
-            orangeDuplicatePhaseSeat = seatIndex
-            return finish(false)
-        end
-
-        warn("[AUTO TRADE] LoadFruit thành công:", loadedTool.Name)
-    end
-
-    orangeResetTradeInventorySnapshot()
-
-    -- Reset đúng một lần.
-    char = plr.Character
-    hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then
-        return finish(false)
-    end
-
-    warn("[AUTO TRADE] Reset để xóa fruit:", fruit.name)
-    hum.Health = 0
-
-    local newChar = plr.CharacterAdded:Wait()
-    newChar:WaitForChild("HumanoidRootPart", 15)
-    newChar:WaitForChild("Humanoid", 15)
-
-    task.wait(1.5)
-
-    -- Sau respawn luôn trở lại gần Dojo để tiếp tục precheck tại chỗ.
-    -- Chưa được đi tới ghế cho tới khi server trả plan trade hợp lệ.
-    local dojoResetTarget = orangeGetDuplicateFarCFrame(seatIndex)
-    pcall(function()
-        toposition(dojoResetTarget)
-        local _, respawnHum, respawnRoot = getCharacter()
-        respawnHum.Sit = false
-        respawnRoot.CFrame = dojoResetTarget
-    end)
-    task.wait(0.5)
-
-    -- Không quay lại điểm drop nếu fruit vật lý vẫn còn sau respawn.
-    if not orangeWaitUntilNoHeldFruit(8) then
-        warn("[AUTO TRADE] Fruit vật lý vẫn còn sau reset, thử reset thêm 1 lần.")
-
-        local secondHum = newChar:FindFirstChildOfClass("Humanoid")
-        if secondHum then
-            secondHum.Health = 0
-            newChar = plr.CharacterAdded:Wait()
-            newChar:WaitForChild("HumanoidRootPart", 15)
-            newChar:WaitForChild("Humanoid", 15)
-            task.wait(1.5)
-        end
-    end
-
-    if orangeFindHeldFruitTool() then
-        warn("[AUTO TRADE] Không xóa được fruit vật lý, dừng vòng này.")
-        return finish(false)
-    end
-
-    -- Gửi inventory mới khi vẫn đứng ngoài bàn.
-    -- Khi server đổi plan, cả hai acc mới quay lại điểm drop cùng lúc.
-    local refreshed = orangeInventorySnapshot()
-    local posted = orangePostTradeInventory(refreshed)
-
-    warn(
-        "[AUTO TRADE] Đã reset và gửi inventory mới khi đứng ngoài điểm drop:",
-        fruit.name,
-        "| fruits:",
-        #refreshed,
-        "| posted:",
-        posted ~= nil
-    )
-
-    orangeHeartbeat("inventory_refreshed_after_duplicate")
-
-    -- Đánh dấu cycle này đã xóa đúng 1 fruit.
-    orangeDuplicateCycleCompleted = true
-    orangeDuplicateCycleFruit = fruit.name
-
-    -- Không quay lại ghế tại đây.
-    -- Cả hai acc phải tiếp tục đứng ngoài bàn cho tới khi server trả plan
-    -- "trade" mới. Khi đó cả hai cùng chạy orangeExitDuplicateWaitPhase()
-    -- và loop ngồi lại đúng ghế.
-    orangeDuplicatePhaseOffSeat = true
-    orangeDuplicatePhaseSeat = seatIndex
-    orangeAutoTradeFinished = false
-
-    return finish(posted ~= nil)
-end
-
-
-local function orangeNormalizeVisibleFruitName(value)
-    local name = string.lower(tostring(value or ""))
-    name = name:gsub("%-", " ")
-    name = name:gsub(" fruit", "")
-    name = name:gsub("%s+", " ")
-    name = name:gsub("^%s+", ""):gsub("%s+$", "")
-    return name
-end
-
-local function orangeTradeGuiHasFruit(fruitName)
-    local wanted = orangeNormalizeVisibleFruitName(fruitName)
-    if wanted == "" then
-        return false
-    end
-
-    local pg = plr:FindFirstChild("PlayerGui")
-    if not pg then
-        return false
-    end
-
-    for _, object in ipairs(pg:GetDescendants()) do
-        if object:IsA("TextLabel")
-            or object:IsA("TextButton")
-            or object:IsA("TextBox") then
-            local shown = orangeNormalizeVisibleFruitName(object.Text)
-            if shown == wanted then
-                return true
-            end
-        end
-    end
-
-    return false
-end
-
-local function orangeWaitTradeGuiFruit(fruitName, timeout)
-    local started = tick()
-    while tick() - started < (tonumber(timeout) or 4) do
-        if not orangeTradeGuiIsOpen() then
-            return false
-        end
-        if orangeTradeGuiHasFruit(fruitName) then
-            return true
-        end
-        task.wait(0.15)
-    end
-    return orangeTradeGuiHasFruit(fruitName)
-end
-
-local function orangeCancelAndClearTrade()
-    pcall(function()
-        OrangeTradeFunction:InvokeServer("cancel")
-    end)
-
-    local started = tick()
-    while orangeTradeGuiIsOpen() and tick() - started < 6 do
-        task.wait(0.2)
-    end
-end
-
-local function orangePlanValueForUser(map, username)
-    if type(map) ~= "table" then
-        return nil
-    end
-
-    if map[username] ~= nil then
-        return map[username]
-    end
-
-    local wanted = string.lower(tostring(username or ""))
-    for key, value in pairs(map) do
-        if string.lower(tostring(key or "")) == wanted then
-            return value
-        end
-    end
-
-    return nil
-end
-
-local function orangeTradePlanIsComplete(plan)
-    if type(plan) ~= "table"
-        or tostring(plan.action or "") ~= "trade"
-        or plan.verified ~= true
-        or plan.receiver_capacity_checked ~= true then
-        return false
-    end
-
-    local items = orangePlanValueForUser(plan.items, plr.Name)
-    local value = tonumber(orangePlanValueForUser(plan.values, plr.Name))
-    local slots = tonumber(orangePlanValueForUser(plan.slot_counts, plr.Name))
-
-    return type(items) == "table"
-        and #items > 0
-        and value ~= nil
-        and value > 0
-        and slots ~= nil
-        and slots == #items
-end
-
-local function orangeAddPlannedItems(items)
-    if type(items) ~= "table" or #items == 0 then
-        return false
-    end
-
-    if not orangeTradeGuiIsOpen() then
-        warn("[AUTO TRADE] Không addItem vì Trade GUI chưa mở.")
-        return false
-    end
-
-    for _, fruit in ipairs(items) do
-        local ok, result = pcall(function()
-            return OrangeTradeFunction:InvokeServer(
-                "addItem",
-                tonumber(fruit.item_id),
-                1
-            )
-        end)
-
-        local serverAccepted = ok and result == true
-        local guiConfirmed = false
-
-        if serverAccepted then
-            guiConfirmed = orangeWaitTradeGuiFruit(
-                fruit.name,
-                4
-            )
-        end
-
-        warn(
-            "[AUTO TRADE] planned addItem:",
-            tostring(fruit.name),
-            "| ItemId:", tostring(fruit.item_id),
-            "| Value:", tostring(fruit.value),
-            "| RemoteOK:", ok,
-            "| Result:", result,
-            "| GUI confirmed:", guiConfirmed
-        )
-
-        if not serverAccepted or not guiConfirmed then
-            warn(
-                "[AUTO TRADE] addItem sai/không hiện đúng fruit; hủy trade để loop lại:",
-                tostring(fruit.name)
-            )
-            orangeCancelAndClearTrade()
-            return false
-        end
-
-        task.wait(ORANGE_TRADE_ADD_DELAY)
-    end
-
-    return true
-end
-
-local function orangeAcceptTrade()
-    if not orangeTradeGuiIsOpen() then
-        warn("[AUTO TRADE] Không accept vì Trade GUI đã đóng.")
-        return false
-    end
-
-    local ok, result = pcall(function()
-        return OrangeTradeFunction:InvokeServer("accept")
-    end)
-
-    local accepted = ok and result ~= false
-    warn("[AUTO TRADE] accept:", ok, result, "| accepted:", accepted)
-    return accepted
-end
-
-orangeDuplicatePhaseOffSeat = false
-orangeDuplicatePhaseSeat = nil
-orangeDuplicatePhaseFruit = nil
-
-local function orangeEnterDuplicateWaitPhase(plan)
-    local checkData = orangeCheck()
-    local currentPlayer = checkData and checkData.player
-    local seatIndex = currentPlayer and tonumber(currentPlayer.seat_index)
-
-    orangeDuplicatePhaseSeat = seatIndex
-    orangeDuplicatePhaseFruit =
-        plan and plan.fruit and tostring(plan.fruit.name or "?") or "?"
-
-    if orangeDuplicatePhaseOffSeat then
-        return true
-    end
-
-    warn(
-        "[AUTO TRADE] Duplicate phase: rời điểm drop | fruit:",
-        orangeDuplicatePhaseFruit,
-        "| no-seat:",
-        seatIndex
-    )
-
-    pcall(function()
-        OrangeTradeFunction:InvokeServer("cancel")
-    end)
-
-    if not orangeLeaveTradeSeat(seatIndex) then
-        warn("[AUTO TRADE] Không thể rời xa ghế trong duplicate phase.")
-        return false
-    end
-
-    local started = tick()
-    while orangeTradeGuiIsOpen() and tick() - started < 8 do
-        local _, hum = getCharacter()
-        hum.Sit = false
-        task.wait(0.25)
-    end
-
-    orangeDuplicatePhaseOffSeat = true
-    orangeHeartbeat("duplicate_phase_off_seat")
-    return true
-end
-
-local function orangeExitDuplicateWaitPhase()
-    if not orangeDuplicatePhaseOffSeat then
-        return true
-    end
-
-    local seatIndex = orangeDuplicatePhaseSeat
-    orangeDuplicatePhaseOffSeat = false
-    orangeDuplicatePhaseFruit = nil
-
-    if not seatIndex then
-        return false
-    end
-
-    warn("[AUTO TRADE] Duplicate phase hoàn tất, quay lại điểm drop:", seatIndex)
-    return orangeReturnToAssignedSeat(seatIndex)
-end
-
-
-local function orangePrecheckInventoriesBeforeSeat(seatIndex)
-    seatIndex = tonumber(seatIndex)
-    if not seatIndex then
-        warn("[AUTO PRECHECK] Thiếu seat_index.")
-        return false
-    end
-
-    if getgenv().DracoFlowUI then
-        getgenv().DracoFlowUI:SetStatus("CHECK BOTH INVENTORIES")
-        getgenv().DracoFlowUI:SetSubStatus(
-            "Hai acc đã request Dojo, đứng gần Dojo để kiểm tra fruit trước khi trade"
-        )
-    end
-
-    -- Hai acc đứng gần Dojo; tuyệt đối chưa vào ghế trong giai đoạn này.
-    orangeDuplicatePhaseOffSeat = true
-    orangeDuplicatePhaseSeat = seatIndex
-
-    local firstSnapshot = orangeInventorySnapshot()
-    local submitted = orangePostTradeInventory(firstSnapshot)
-    if not submitted then
-        warn("[AUTO PRECHECK] Không gửi được inventory ban đầu.")
-        return false
-    end
-
-    local started = tick()
-    local lastInventoryPostAt = tick()
-    local lastResetRetryAt = 0
-    local confirmedTradeOnce = false
-
-    while tick() - started < ORANGE_TRADE_PLAN_TIMEOUT do
-        local response = orangeGetTradePlan()
-
-        if response
-            and response.success == false
-            and tostring(response.error or "") == "session_not_found" then
-            orangeRecoverMissingSession("inventory_precheck")
-            return false
-        end
-
-        local plan = response and response.plan
-        local action = plan and tostring(plan.action or "") or ""
-
-        warn(
-            "[AUTO PRECHECK] plan:",
-            action ~= "" and action or "no_response",
-            "| target:",
-            tostring(plan and plan.username or "-"),
-            "| fruit:",
-            tostring(plan and plan.fruit and plan.fruit.name or "-")
-        )
-
-        if action == "waiting_helper" or action == "waiting_inventory" or action == "" then
-            if tick() - lastInventoryPostAt >= 2 then
-                lastInventoryPostAt = tick()
-                orangePostTradeInventory(orangeInventorySnapshot())
-            end
-
-        elseif action == "remove_duplicate" then
-            confirmedTradeOnce = false
-
-            local targetUsername =
-                string.lower(tostring(plan.username or ""))
-            local myUsername =
-                string.lower(tostring(plr.Name or ""))
-
-            if getgenv().DracoFlowUI then
-                getgenv().DracoFlowUI:SetStatus("REMOVE DUPLICATE BEFORE TRADE")
-                getgenv().DracoFlowUI:SetSubStatus(
-                    targetUsername == myUsername
-                    and (
-                        "Acc này đang giữ fruit làm bên kia không nhận được; "
-                        .. "unstore từ xa rồi reset: "
-                        .. tostring(plan.fruit and plan.fruit.name or "?")
-                    )
-                    or (
-                        "Đang chờ acc kia reset: "
-                        .. tostring(plan.fruit and plan.fruit.name or "?")
-                    )
-                )
-            end
-
-            if targetUsername == myUsername
-                and not orangeDuplicateResetBusy
-                and tick() - lastResetRetryAt >= 2 then
-
-                lastResetRetryAt = tick()
-
-                local requestedFruit = orangeNormalizeFruitName(
-                    plan.fruit and (
-                        plan.fruit.internal_name
-                        or plan.fruit.name
-                    )
-                )
-                local previousFruit = orangeNormalizeFruitName(
-                    orangeDuplicateCycleFruit or ""
-                )
-
-                -- Server chỉ trả remove_duplicate khi không tìm được plan trade.
-                -- Khi server chuyển sang một fruit trùng mới, mở khóa để xử lý
-                -- tiếp fruit đó. Nếu đã có plan trade thì nhánh này không chạy.
-                if requestedFruit ~= ""
-                    and requestedFruit ~= previousFruit then
-                    orangeDuplicateCycleCompleted = false
-                    orangeDuplicateResetKey = nil
-                end
-
-                if not orangeDuplicateCycleCompleted then
-                    local removed =
-                        orangeLoadAndResetDuplicate(plan.fruit)
-
-                    if not removed then
-                        warn(
-                            "[AUTO PRECHECK] Reset fruit trùng chưa thành công, sẽ thử lại:",
-                            requestedFruit
-                        )
-                    end
-                else
-                    orangePostTradeInventory(orangeInventorySnapshot())
-                end
-            end
-
-        elseif action == "trade" then
-            -- Xác nhận inventory thêm một lần ngay trước khi cho cả hai vào ghế.
-            if not confirmedTradeOnce then
-                confirmedTradeOnce = true
-                orangeDuplicateCycleCompleted = false
-                orangeDuplicateCycleFruit = nil
-
-                local verifySnapshot = orangeInventorySnapshot()
-                orangePostTradeInventory(verifySnapshot)
-                task.wait(0.8)
-            else
-                local verifyResponse = orangeGetTradePlan()
-
-                if verifyResponse
-                    and verifyResponse.success == false
-                    and tostring(verifyResponse.error or "") == "session_not_found" then
-                    orangeRecoverMissingSession("inventory_verify")
-                    return false
-                end
-
-                local verifyPlan = verifyResponse and verifyResponse.plan
-                local verifyAction =
-                    verifyPlan and tostring(verifyPlan.action or "") or ""
-
-                if verifyAction == "trade"
-                    and orangeTradePlanIsComplete(verifyPlan) then
-
-                    orangeDuplicatePhaseFruit = nil
-                    orangeDuplicateCycleCompleted = false
-                    orangeDuplicateCycleFruit = nil
-
-                    orangeHeartbeat("inventory_precheck_verified")
-
-                    warn(
-                        "[AUTO PRECHECK] Inventory 2 acc đã verify: "
-                        .. "không lỗi receive-capacity, tỷ lệ hợp lệ. "
-                        .. "Bắt đầu func trade và di chuyển tới ghế."
-                    )
-
-                    -- Precheck chỉ kiểm tra/reset fruit gần Dojo.
-                    -- Không tự quay lại ghế tại đây; orangeResumeSession sẽ
-                    -- gọi orangeGoSeat đúng một lần rồi mới bắt đầu trade.
-                    orangeDuplicatePhaseOffSeat = false
-                    orangeDuplicatePhaseSeat = nil
-
-                    return true
-                end
-
-                if verifyAction == "trade" then
-                    warn(
-                        "[AUTO PRECHECK] Server trả trade nhưng plan thiếu items/value/slots. "
-                        .. "Hãy restart host bằng file balanced_trade_v2; đang gửi lại inventory."
-                    )
-                    orangePostTradeInventory(orangeInventorySnapshot())
-                    task.wait(1)
-                end
-
-                confirmedTradeOnce = false
-            end
-
-        elseif action == "no_balanced_pair" then
-            warn(
-                "[AUTO PRECHECK] Không có tổ hợp fruit nào đủ tỷ lệ trade."
-            )
-            return false
-        end
-
-        task.wait(0.65)
-    end
-
-    warn("[AUTO PRECHECK] Hết thời gian kiểm tra inventory 2 acc.")
-    return false
-end
-
-
-orangeTradeCompletedSignal = false
-
-local function orangeTradeCompletionVisible()
-    local pg = plr:FindFirstChild("PlayerGui")
-    if not pg then
-        return false
-    end
-
-    for _, object in ipairs(pg:GetDescendants()) do
-        if object:IsA("TextLabel")
-            or object:IsA("TextButton")
-            or object:IsA("TextBox") then
-
-            local value = string.lower(tostring(object.Text or ""))
-
-            if string.find(value, "trade completed", 1, true)
-                or string.find(value, "trade complete", 1, true)
-                or string.find(value, "check your inventory", 1, true) then
-                return true
-            end
-        end
-    end
-
-    return false
-end
-
-local function orangeCountReadyLabels()
-    local pg = plr:FindFirstChild("PlayerGui")
-    if not pg then
-        return 0
-    end
-
-    local count = 0
-
-    for _, object in ipairs(pg:GetDescendants()) do
-        if object:IsA("TextLabel")
-            or object:IsA("TextButton")
-            or object:IsA("TextBox") then
-
-            local value = string.lower(tostring(object.Text or ""))
-            value = value:gsub("%s+", "")
-
-            if value == "ready!" or value == "ready" then
-                count += 1
-            end
-        end
-    end
-
-    return count
-end
-
-local function orangeAcceptUntilTradeEnds(timeout)
-    local started = tick()
-    local lastAcceptAt = 0
-    local guiWasOpen = orangeTradeGuiIsOpen()
-
-    while tick() - started < (tonumber(timeout) or 90) do
-        if orangeTradeCompletionVisible() then
-            orangeTradeCompletedSignal = true
+        if hasBelt(Config.BLUE_BELT) then
             return true
         end
 
-        local guiOpen = orangeTradeGuiIsOpen()
+        local matched = blueMatch()
 
-        if guiOpen then
-            guiWasOpen = true
-
-            -- Accept được gọi lặp lại. Một acc Ready trước sẽ tiếp tục giữ
-            -- trạng thái, còn acc kia sẽ tự accept lại nếu lần đầu bị miss.
-            if tick() - lastAcceptAt >= 0.9 then
-                lastAcceptAt = tick()
-
-                local ok, result = pcall(function()
-                    return OrangeTradeFunction:InvokeServer("accept")
-                end)
-
-                warn(
-                    "[AUTO TRADE] accept loop:",
-                    ok,
-                    result,
-                    "| ready labels:",
-                    orangeCountReadyLabels()
-                )
-            end
-        elseif guiWasOpen then
-            -- GUI vừa đóng. Chờ ngắn để thông báo completion xuất hiện.
-            local closedAt = tick()
-
-            while tick() - closedAt < 4 do
-                if orangeTradeCompletionVisible() then
-                    orangeTradeCompletedSignal = true
-                    return true
-                end
-                task.wait(0.15)
-            end
-
-            -- Có thể trade vừa hoàn tất nhưng thông báo không còn trên GUI.
-            -- Trả về để outer loop kiểm tra quest/server thay vì add lại ngay.
-            return true
+        if not matched or not matched.success then
+            task.wait(3)
+            return false
         end
 
-        task.wait(0.15)
-    end
-
-    return false
-end
-
-local function orangeRunAutoTrade()
-    if orangeAutoTradeRunning or orangeAutoTradeFinished then return end
-    orangeAutoTradeRunning = true
-    warn("[AUTO TRADE] COORDINATOR START")
-
-    local openStarted = tick()
-    local lastOpenReseatAt = 0
-
-    while not orangeTradeGuiIsOpen()
-        and tick() - openStarted < ORANGE_TRADE_OPEN_TIMEOUT do
-
-        if tick() - lastOpenReseatAt >= 2 then
-            lastOpenReseatAt = tick()
-
-            local checkData = orangeCheck()
-            local currentPlayer = checkData and checkData.player
-            local currentSeat = currentPlayer and tonumber(currentPlayer.seat_index)
-            local _, hum = getCharacter()
-
-            if currentSeat and not hum.Sit then
-                warn(
-                    "[AUTO TRADE] GUI chưa mở, ép ngồi lại điểm drop:",
-                    currentSeat
-                )
-                orangeAutoTradeRunning = false
-                orangeReturnToAssignedSeat(currentSeat)
-                return
-            end
-        end
-
-        task.wait(0.25)
-    end
-
-    if not orangeTradeGuiIsOpen() then
-        warn("[AUTO TRADE] Trade GUI chưa mở.")
-        orangeAutoTradeRunning = false
-        return
-    end
-
-    local snapshot = orangeInventorySnapshot()
-    local submitted = orangePostTradeInventory(snapshot)
-    if not submitted then
-        warn("[AUTO TRADE] Không gửi được inventory lên server.")
-        orangeAutoTradeRunning = false
-        return
-    end
-
-    local started = tick()
-    local lastPartnerReseatAt = 0
-
-    while tick() - started < ORANGE_TRADE_PLAN_TIMEOUT do
-        local response = orangeGetTradePlan()
-
-        if response
-            and response.success == false
-            and tostring(response.error or "") == "session_not_found" then
-            orangeRecoverMissingSession("trade_coordinator")
-            orangeAutoTradeRunning = false
-            return
-        end
-
-        local plan = response and response.plan
-        local action = plan and tostring(plan.action or "") or ""
-
-        if action == "remove_duplicate" then
-            -- Cả hai acc đều rời bàn. Acc chờ không được ngồi lại sớm,
-            -- nếu không cửa sổ trade mở lại và LoadFruit bị chặn.
-            orangeEnterDuplicateWaitPhase(plan)
-
-            local targetUsername = string.lower(tostring(plan.username or ""))
-            local myUsername = string.lower(tostring(plr.Name or ""))
-
-            if targetUsername == myUsername then
-                local requestedFruit = orangeNormalizeFruitName(
-                    plan.fruit and (
-                        plan.fruit.internal_name
-                        or plan.fruit.name
-                    )
-                )
-                local previousFruit = orangeNormalizeFruitName(
-                    orangeDuplicateCycleFruit or ""
-                )
-
-                if requestedFruit ~= ""
-                    and requestedFruit ~= previousFruit then
-                    orangeDuplicateCycleCompleted = false
-                    orangeDuplicateResetKey = nil
-                end
-
-                if orangeDuplicateCycleCompleted then
-                    if getgenv().DracoFlowUI then
-                        getgenv().DracoFlowUI:SetStatus("WAIT INVENTORY RECHECK")
-                        getgenv().DracoFlowUI:SetSubStatus(
-                            "Đã xử lý " .. tostring(requestedFruit)
-                            .. ", đang chờ server kiểm tra lại"
-                        )
-                    end
-                    orangePostTradeInventory(orangeInventorySnapshot())
-                    task.wait(0.5)
-                else
-                    if getgenv().DracoFlowUI then
-                        getgenv().DracoFlowUI:SetStatus("REMOVE DUPLICATE")
-                        getgenv().DracoFlowUI:SetSubStatus(
-                            "Không có plan trade; đang xóa fruit trùng: "
-                            .. tostring(plan.fruit and plan.fruit.name or "?")
-                        )
-                    end
-
-                    local removed = orangeLoadAndResetDuplicate(plan.fruit)
-                    if not removed then
-                        warn("[AUTO TRADE] Xóa fruit trùng thất bại; chờ retry.")
-                    end
-                    task.wait(0.8)
-                end
-            end
-
-            if getgenv().DracoFlowUI then
-                getgenv().DracoFlowUI:SetStatus("WAIT DUPLICATE RESET")
-                getgenv().DracoFlowUI:SetSubStatus(
-                    "Đứng ngoài điểm drop, chờ acc kia xóa: "
-                    .. tostring(plan.fruit and plan.fruit.name or "?")
-                )
-            end
-
-        elseif action == "trade" then
-            -- Server đã có inventory mới và trade plan mới.
-            -- Mở khóa cycle mới; cycle trước chỉ xóa đúng 1 fruit.
-            orangeDuplicateCycleCompleted = false
-            orangeDuplicateCycleFruit = nil
-            -- Hai acc quay lại điểm drop ngay trong cùng flow.
-            -- Không return giữa chừng vì acc chờ có thể đứng im mãi.
-            if orangeDuplicatePhaseOffSeat then
-                if not orangeExitDuplicateWaitPhase() then
-                    warn("[AUTO TRADE] Không quay lại được điểm drop sau duplicate phase.")
-                    orangeAutoTradeRunning = false
-                    return
-                end
-            end
-
-            -- Nếu GUI chưa mở, ép ngồi lại và tiếp tục chờ ngay tại đây.
-            if not orangeTradeGuiIsOpen() then
-                local current = orangeCheck()
-                local currentPlayer = current and current.player
-                local currentSeat = currentPlayer and currentPlayer.seat_index
-
-                if currentSeat then
-                    if not orangeReturnToAssignedSeat(currentSeat) then
-                        orangeAutoTradeRunning = false
-                        return
-                    end
-                end
-
-                local guiStarted = tick()
-                while not orangeTradeGuiIsOpen()
-                    and tick() - guiStarted < 15 do
-                    task.wait(0.25)
-                end
-
-                if not orangeTradeGuiIsOpen() then
-                    warn("[AUTO TRADE] Đã về điểm drop nhưng trade GUI chưa mở.")
-                    orangeAutoTradeRunning = false
-                    return
-                end
-            end
-
-            local items = orangePlanValueForUser(plan.items, plr.Name)
-            local myValue = tonumber(
-                orangePlanValueForUser(plan.values, plr.Name)
-            ) or 0
-            local mySlots = tonumber(
-                orangePlanValueForUser(plan.slot_counts, plr.Name)
-            ) or 0
-
-            if not orangeTradePlanIsComplete(plan) then
-                warn(
-                    "[AUTO TRADE] Bỏ qua plan trade không đầy đủ | plan_version:",
-                    tostring(plan.plan_version or "old"),
-                    "| value:", myValue,
-                    "| slots:", mySlots
-                )
-                orangePostTradeInventory(orangeInventorySnapshot())
-                orangeAutoTradeRunning = false
-                task.wait(1)
-                return
-            end
-            warn(
-                "[AUTO TRADE] Trade plan ready | value:",
-                myValue,
-                "| slots:",
-                mySlots,
-                "| difference:",
-                tostring(plan.difference_percent or "?") .. "%"
-            )
-            if orangeAddPlannedItems(items) then
-                task.wait(0.5)
-
-                -- Không đánh dấu finished sau lần accept đầu tiên.
-                -- Loop accept cho tới khi cả hai bên Ready và trade đóng/xong.
-                local ended = orangeAcceptUntilTradeEnds(90)
-
-                orangeAutoTradeFinished = false
-                orangeAutoTradeRunning = false
-
-                if ended then
-                    return
-                end
-            end
-
-            -- Add thất bại hoặc accept loop timeout:
-            -- loop lại ghế và chạy coordinator lại.
-            orangeAutoTradeFinished = false
-            orangeAutoTradeRunning = false
-
-            local current = orangeCheck()
-            local currentPlayer = current and current.player
-            local currentSeat = currentPlayer and tonumber(currentPlayer.seat_index)
-
-            if currentSeat then
-                orangeReturnToAssignedSeat(currentSeat)
-            end
-
-            return
-
-        elseif action == "waiting_inventory" then
-            if getgenv().DracoFlowUI then
-                getgenv().DracoFlowUI:SetStatus("CHECK BOTH INVENTORIES")
-                getgenv().DracoFlowUI:SetSubStatus(
-                    "Đang chờ inventory mới sau khi reset fruit"
-                )
-            end
-
-        elseif action == "no_balanced_pair" then
-            orangeDuplicateCycleCompleted = false
-            orangeDuplicateCycleFruit = nil
-            if orangeDuplicatePhaseOffSeat then
-                orangeAutoTradeRunning = false
-                orangeExitDuplicateWaitPhase()
-                return
-            end
-
-            warn("[AUTO TRADE] Không tìm thấy cặp fruit cân value.")
-            orangeAutoTradeRunning = false
-            return
-        end
-
-        task.wait(0.8)
-    end
-
-    warn("[AUTO TRADE] Hết thời gian chờ trade plan.")
-    orangeAutoTradeRunning = false
-end
-
-local function screenHasTradeCompleted()
-    local pg = plr:FindFirstChild("PlayerGui")
-    if not pg then
-        return false
-    end
-
-    for _, object in ipairs(pg:GetDescendants()) do
-        if object:IsA("TextLabel")
-            or object:IsA("TextButton")
-            or object:IsA("TextBox") then
-            local value = string.lower(tostring(object.Text or ""))
-            if string.find(value, "trade completed", 1, true)
-                or string.find(value, "check your inventory", 1, true)
-                or string.find(value, "trade complete", 1, true) then
-                return true
-            end
-        end
-    end
-    return false
-end
-
-local function orangeWaitTrade()
-    if getgenv().DracoFlowUI then
-        getgenv().DracoFlowUI:SetStatus("WAIT AUTO TRADE")
-        getgenv().DracoFlowUI:SetSubStatus(
-            "Inventory đã kiểm tra xong, hai acc đang thực hiện giao dịch"
-        )
-    end
-
-    orangeAutoTradeFinished = false
-    orangeAutoTradeRunning = false
-
-    local function startCoordinatorIfNeeded()
-        if orangeAutoTradeRunning or orangeAutoTradeFinished then
-            return
-        end
-
-        task.spawn(function()
-            local ok, err = pcall(orangeRunAutoTrade)
-            if not ok then
-                orangeAutoTradeRunning = false
-                warn("[AUTO TRADE] Runtime error:", err)
-            end
-        end)
-    end
-
-    startCoordinatorIfNeeded()
-
-    local started = tick()
-    while tick() - started < ORANGE_TRADE_TIMEOUT do
-        -- Quan trọng: remove_duplicate làm coordinator return.
-        -- Sau respawn/quay lại điểm drop, tự chạy coordinator lại để trade tiếp tục.
-        startCoordinatorIfNeeded()
-        if orangeTradeCompletedSignal or screenHasTradeCompleted() then
-            orangeTradeCompletedSignal = false
-            warn("[Orange Belt] Trade đã hoàn tất, chờ server đồng bộ quest...")
-            task.wait(2)
-            orangeComplete()
-            return true
-        end
-
-        -- Duplicate/capacity được Python coordinator xử lý trước khi add.
-        -- Không cancel session ở đây vì sẽ làm flow dừng sau khi reset.
-
-        local state = orangeCheck()
-        local session = state and state.session
-        local playerState = state and state.player
-
-        if playerState and playerState.role == "helper" and session then
-            local joinData = state.join
-            local freshTarget = tostring(
-                (joinData and joinData.job_id)
-                or session.job_id
+        -- Requester must hop to a low-player server before any
+        -- quest/drop/collect function is allowed to start.
+        if matched.role == "requester" then
+            local syncedJob = tostring(
+                matched.session
+                and matched.session.job_id
                 or ""
             )
 
-            if freshTarget ~= "" and game.JobId ~= freshTarget then
+            if matched.job_synced == true then
+                getgenv().BlueRequesterLowReady = true
+
                 warn(
-                    "[Orange Belt] Phát hiện đang sai JobId trong lúc trade:",
-                    game.JobId,
-                    "->",
-                    freshTarget
+                    "[Blue Belt] Requester synced low-server JobId:",
+                    syncedJob ~= "" and syncedJob or game.JobId
                 )
-                orangeAutoTradeRunning = false
-                orangeJoinJob(
-                    (joinData and joinData.place_id) or session.place_id,
-                    freshTarget
-                )
+            elseif getgenv().BlueRequesterLowReady ~= true then
+                local pendingTarget =
+                    tostring(getgenv().BlueRequesterHopTarget or "")
+                local pendingAt =
+                    tonumber(getgenv().BlueRequesterHopAt) or 0
+
+                if pendingTarget ~= ""
+                    and tick() - pendingAt < 15 then
+                    warn(
+                        "[Blue Belt] Requester đang chờ teleport low server:",
+                        pendingTarget
+                    )
+                    return false
+                end
+
+                blueHopLowestServer()
                 return false
             end
         end
 
-        if session then
-            if session.status == "completed" then
-                return true
-            end
-            if session.status == "failed"
-                or session.status == "expired"
-                or session.status == "cancelled" then
-                warn("[Orange Belt] Session dừng:", session.status, session.error)
+        if matched.role == "helper" and matched.join then
+            local targetJob = tostring(matched.join.job_id or "")
+            local targetPlace = matched.join.place_id
+
+            warn(
+                "[Blue Belt] Helper server check | current:",
+                game.JobId,
+                "| target:",
+                targetJob
+            )
+
+            if targetJob ~= "" and game.JobId ~= targetJob then
+                if getgenv().BlueJoinPendingJob == targetJob
+                    and tick() - (
+                        getgenv().BlueJoinPendingAt or 0
+                    ) < 15 then
+                    return false
+                end
+
+                getgenv().BlueJoinPendingJob = targetJob
+                getgenv().BlueJoinPendingAt = tick()
+
+                local joinFunction =
+                    getgenv().DracoOrangeJoinJob
+
+                if type(joinFunction) == "function" then
+                    joinFunction(targetPlace, targetJob)
+                end
+
                 return false
             end
-        elseif state and state.success then
+
+            -- Arrived at the authoritative requester server.
+            getgenv().BlueJoinPendingJob = nil
+            getgenv().BlueJoinPendingAt = 0
+        end
+
+        -- Hard gate: Blue Belt logic starts only after both accounts
+        -- are in the authoritative requester JobId.
+        local finalCheck = blueMatch()
+
+        if not finalCheck or not finalCheck.success then
             return false
         end
 
-        task.wait(ORANGE_CHECK_INTERVAL)
-    end
-
-    orangeCancel("trade_timeout")
-    return false
-end
-
-local function orangeClaimAfterTrade()
-    -- TEST MODE: no belt claim.
-    return true
-end
-
-local function orangeFinishAndClaim()
-    -- Trade finished: release the coordinator session so the test can run again.
-    orangeAutoTradeFinished = true
-    orangeAutoTradeRunning = false
-    orangeTradeCompletedSignal = false
-    orangeRelease()
-    orangeSessionActive = false
-    orangeSetStatus(
-        "ORANGE TRADE TEST COMPLETE",
-        "Trade đã xong; session đã release, không Request/Claim belt"
-    )
-    return true
-end
-
-local function orangeResumeSession(state)
-    local playerState = state and state.player
-    local session = state and state.session
-
-    if not playerState or not session then
-        orangeSetStatus(
-            "ORANGE BELT • WAIT PAIR",
-            "Đã đăng ký API, đang chờ đủ requester/helper"
+        local authoritativeJob = tostring(
+            finalCheck.session
+            and finalCheck.session.job_id
+            or ""
         )
 
-        local started = tick()
-        while tick() - started < 90 do
-            local fresh = orangeCheck()
-            local freshPlayer = fresh and fresh.player
-            local freshSession = fresh and fresh.session
+        if authoritativeJob ~= ""
+            and game.JobId ~= authoritativeJob then
 
-            if freshPlayer and freshSession then
-                playerState = freshPlayer
-                session = freshSession
-                state = fresh
-                break
+            if finalCheck.role == "helper"
+                and finalCheck.join then
+
+                local joinFunction =
+                    getgenv().DracoOrangeJoinJob
+
+                if type(joinFunction) == "function" then
+                    joinFunction(
+                        finalCheck.join.place_id,
+                        authoritativeJob
+                    )
+                end
             end
 
-            -- Re-submit match so a waiting player can claim/create a pair.
-            -- Handle HTTP 409/hop_required instead of endlessly spamming /api/match.
-            local matchResult = orangeMatchRequest()
+            warn(
+                "[Blue Belt] Chưa cùng requester JobId | current:",
+                game.JobId,
+                "| target:",
+                authoritativeJob
+            )
 
-            if matchResult then
-                if matchResult.success == true then
-                    -- Match/create succeeded. /api/check will return the session
-                    -- on the next loop iteration.
-                    task.wait(0.5)
+            return false
+        end
 
-                elseif matchResult.waiting == true
-                    and matchResult.error == "requester_finding_low_server" then
-                    orangeSetStatus(
-                        "ORANGE BELT • WAIT REQUESTER",
-                        "Acc đầu đang tìm server low-player"
+        blueHeartbeat("blue_same_server_ready")
+        blueRequestQuest()
+        blueState("quest_ready")
+
+        local started = tick()
+
+        while tick() - started < 900 do
+            local response = blueState()
+            local state = response and response.blue
+            local phase = state and state.phase or "waiting_helper"
+            local owner = state and state.fruit_owner
+            local partner = state and state.partner
+            local cycle = tonumber(state and state.cycle) or 0
+            local isOwner = owner == plr.Name
+            local isPartner = partner == plr.Name
+
+            if phase ~= BlueRuntime.lastPhase
+                or cycle ~= BlueRuntime.lastCycle then
+                warn(
+                    "[Blue Belt] Phase:",
+                    phase,
+                    "| owner:",
+                    owner,
+                    "| partner:",
+                    partner,
+                    "| cycle:",
+                    cycle
+                )
+                BlueRuntime.lastPhase = phase
+                BlueRuntime.lastCycle = cycle
+            end
+
+            if getgenv().DracoFlowUI then
+                getgenv().DracoFlowUI:SetStatus(
+                    "BLUE BELT • "
+                    .. string.upper(
+                        string.gsub(phase, "_", " ")
                     )
-                    task.wait(1)
+                )
+                getgenv().DracoFlowUI:SetSubStatus(
+                    "Owner: " .. tostring(owner)
+                    .. "\nCycle: " .. tostring(cycle)
+                )
+            end
 
-                elseif matchResult.hop_required == true then
-                    local reason = tostring(
-                        matchResult.error or "server_unavailable"
-                    )
+            if phase == "waiting_helper"
+                or phase == "waiting_both_quest" then
+                task.wait(1)
 
-                    warn(
-                        "[Orange Belt] Server hiện tại không thể tạo pair:",
-                        reason
-                    )
+            elseif phase == "owner_random" and isOwner then
+                blueRunAction(function()
+                    toposition(Config.BLUE_DROP_POS)
 
-                    orangeSetStatus(
-                        "ORANGE BELT • SERVER UNAVAILABLE",
-                        reason == "server_player_limit"
-                            and "Server quá đông, đang tìm server khác"
-                            or "Server đã đủ pair, đang tìm server khác"
-                    )
-
-                    orangeSessionActive = false
-
-                    if getgenv().OrangeHopLowestServer then
-                        getgenv().OrangeHopLowestServer()
+                    local tool = blueEquipFruit(true)
+                    if tool then
+                        blueState("owner_randomed")
+                        return true
                     end
 
                     return false
+                end)
+
+            elseif phase == "owner_drop" and isOwner then
+                blueRunAction(function()
+                    if blueDropHeldFruit() then
+                        blueState("owner_dropped")
+                        return true
+                    end
+
+                    -- Fruit không xuất hiện hoặc đã mất.
+                    blueState("fruit_lost")
+                    return false
+                end)
+
+            elseif phase == "partner_collect" and isPartner then
+                blueRunAction(function()
+                    if blueCollectFruit() then
+                        blueState("partner_collected")
+                        return true
+                    end
+
+                    blueState("fruit_lost")
+                    return false
+                end)
+
+            elseif phase == "partner_drop_back" and isPartner then
+                blueRunAction(function()
+                    if blueDropHeldFruit() then
+                        blueState("partner_dropped_back")
+                        return true
+                    end
+
+                    blueState("fruit_lost")
+                    return false
+                end)
+
+            elseif phase == "owner_collect_back" and isOwner then
+                blueRunAction(function()
+                    if blueCollectFruit() then
+                        blueState("owner_collected_back")
+                        return true
+                    end
+
+                    blueState("fruit_lost")
+                    return false
+                end)
+
+            elseif phase == "both_claim" then
+                blueRunAction(function()
+                    local hasBlue = blueClaimOnce()
+
+                    blueState("claim_result", {
+                        has_belt = hasBlue,
+                    })
+
+                    return true
+                end)
+
+            elseif phase == "completed" then
+                if hasBelt(Config.BLUE_BELT) then
+                    blueState("release")
+                    return true
                 end
+
+                -- Server says completed but local inventory has not
+                -- replicated yet; claim/check once more.
+                blueClaimOnce()
             end
 
-            task.wait(1.5)
-        end
-
-        if not playerState or not session then
-            warn("[Orange Belt] Hết thời gian chờ pair/session.")
-            orangeSessionActive = false
-            return false
-        end
-    end
-
-    -- Requester must select a low-player server before a helper is assigned.
-    if playerState.role == "requester"
-        and session.status == "requester_relocating" then
-
-        orangeSetStatus(
-            "ORANGE BELT • LOW SERVER READY",
-            "Đang xác nhận JobId low-player rồi mới gọi helper"
-        )
-
-        orangeHeartbeat("requester_low_ready")
-
-        local finalizeStarted = tick()
-        while tick() - finalizeStarted < 30 do
-            local finalized = orangeCheck()
-            local finalizedSession = finalized and finalized.session
-            local finalizedPlayer = finalized and finalized.player
-
-            if finalizedSession
-                and finalizedSession.status ~= "requester_relocating" then
-                state = finalized
-                session = finalizedSession
-                playerState = finalizedPlayer or playerState
-                break
+            local pollDelay = 1.75
+            if phase == "owner_random"
+                or phase == "owner_drop"
+                or phase == "partner_collect"
+                or phase == "partner_drop_back"
+                or phase == "owner_collect_back"
+                or phase == "both_claim" then
+                pollDelay = 0.75
             end
-
-            orangeHeartbeat("requester_low_ready")
-            task.wait(1)
+            task.wait(pollDelay + math.random() * 0.2)
         end
 
-        if session.status == "requester_relocating" then
-            warn(
-                "[Orange Belt] Server low hiện tại chưa đủ điều kiện; "
-                .. "requester sẽ tìm server low khác."
-            )
-            orangeSessionActive = false
-            getgenv().OrangeHopLowestServer()
-            return false
-        end
+        warn("[Blue Belt] Coordinator timeout.")
+        return hasBelt(Config.BLUE_BELT)
     end
 
-    -- Requester waits here. Only after its low-player JobId is finalized can
-    -- the API assign the second account as helper.
-    if playerState.role == "requester" and not session.helper then
-        orangeSetStatus(
-            "ORANGE BELT • WAIT HELPER",
-            "Đã chọn server low-player, đang gọi acc còn lại vào"
-        )
-
-        local helperStarted = tick()
-        while tick() - helperStarted < 120 do
-            orangeHeartbeat("requester_waiting_helper")
-            local fresh = orangeCheck()
-            local freshSession = fresh and fresh.session
-
-            if freshSession and freshSession.helper then
-                state = fresh
-                session = freshSession
-                playerState = fresh.player or playerState
-                break
-            end
-
-            task.wait(1)
-        end
-
-        if not session.helper then
-            warn("[Orange Belt] Chưa có helper join queue, tiếp tục chờ vòng sau.")
-            orangeSessionActive = false
-            return false
-        end
-    end
-
-    playerState.seat_index =
-        tonumber(playerState.seat_index)
-        or tonumber(session.requester_seat)
-        or tonumber(session.helper_seat)
-        or tonumber(session.seat_index)
-        or tonumber(session.pair_slot)
-
-    if session.status == "completed" then
-        return orangeFinishAndClaim()
-    end
-
-    if session.status == "failed"
-        or session.status == "expired"
-        or session.status == "cancelled" then
-        orangeRelease()
-        orangeSessionActive = false
-        return false
-    end
-
-    if playerState.role == "helper" then
-        -- Never select a low-player server on the helper. Wait until requester
-        -- finalizes its new JobId, then join exactly that server.
-        if session.status == "requester_relocating"
-            or tonumber(session.pair_slot or 0) <= 0 then
-            orangeSetStatus(
-                "ORANGE BELT • WAIT REQUESTER",
-                "Requester đang tìm server low-player"
-            )
-            orangeSessionActive = false
-            task.wait(1.5)
-            return false
-        end
-
-        -- /api/check returns a fresh authoritative join target.
-        local joinData = state.join
-        local targetJobId = tostring(
-            (joinData and joinData.job_id)
-            or session.job_id
-            or ""
-        )
-        local targetPlaceId =
-            (joinData and joinData.place_id)
-            or session.place_id
-
-        if targetJobId ~= "" and game.JobId ~= targetJobId then
-            orangeJoinJob(targetPlaceId, targetJobId)
-            return false
-        end
-    end
-
-    -- Cả requester và helper đều claim/request quest trước khi tới điểm drop.
-    orangePrepareQuest()
-    -- TEST MODE: ignore existing Orange Belt and continue trade testing.
-
-    local seatIndex = tonumber(playerState.seat_index)
-    if not seatIndex or not ORANGE_SEATS[seatIndex] then
-        warn("[Orange Belt] Session thiếu seat_index hợp lệ.")
-        orangeRelease()
-        orangeSessionActive = false
-        return false
-    end
-
-    -- Wait until both accounts are confirmed in the reserved JobId.
-    orangeSetStatus(
-        "ORANGE BELT • WAIT BOTH ACCOUNTS",
-        "Đang chờ requester/helper vào cùng JobId"
-    )
-
-    local sameServerStarted = tick()
-    while tick() - sameServerStarted < 75 do
-        local fresh = orangeCheck()
-        local freshSession = fresh and fresh.session
-        local freshPlayer = fresh and fresh.player
-
-        if freshSession and freshPlayer then
-            local requesterReady =
-                freshSession.requester_joined == true
-                or freshSession.requester_ready == true
-                or freshSession.requester_in_server == true
-
-            local helperReady =
-                freshSession.helper_joined == true
-                or freshSession.helper_ready == true
-                or freshSession.helper_in_server == true
-
-            -- Fallback for servers that don't expose joined flags:
-            -- continue once this client is in the reserved JobId and a helper exists.
-            local helperExists =
-                freshSession.helper ~= nil
-                or freshSession.helper_username ~= nil
-                or freshSession.helper_name ~= nil
-
-            local reservedJob = tostring(freshSession.job_id or "")
-            local inReservedJob =
-                reservedJob == ""
-                or game.JobId == reservedJob
-
-            if inReservedJob and (
-                (requesterReady and helperReady)
-                or helperExists
-            ) then
-                break
-            end
-        end
-
-        orangeHeartbeat("waiting_both_accounts")
-        task.wait(1)
-    end
-
-    -- Check both inventories before either account sits down.
-    orangeSetStatus(
-        "ORANGE BELT • INVENTORY PRECHECK",
-        "Đang kiểm tra inventory của cả hai acc"
-    )
-
-    if not orangePrecheckInventoriesBeforeSeat(seatIndex) then
-        warn("[Orange Belt] Inventory precheck chưa hoàn tất, sẽ retry.")
-        orangeSessionActive = false
-        return false
-    end
-
-    -- Chỉ khi server đã trả plan trade ổn định thì cả hai mới vào ghế.
-    if not orangeGoSeat(seatIndex) then
-        orangeSessionActive = false
-        return false
-    end
-
-    if orangeWaitTrade() then
-        return orangeFinishAndClaim()
-    end
-
-    orangeRelease()
-    orangeSessionActive = false
-    return false
+    getgenv().DracoRunBlueBelt = runBlueBelt
 end
 
-local function runOrangeBelt()
-    setCurrentBeltPhase("ORANGE BELT")
-
-    if orangeSessionActive or orangeTeleporting then
-        return false
-    end
-
-    orangeSessionActive = true
-    local registered = orangeRegister("orange_start")
-    if not registered or not registered.success then
-        orangeSessionActive = false
-        task.wait(3)
-        return false
-    end
-
-    -- Phục hồi session cũ sau crash hoặc sau TeleportToPlaceInstance.
-    local oldState = orangeCheck()
-    if oldState and oldState.player and oldState.player.session_id then
-        return orangeResumeSession(oldState)
-    end
-
-    -- Ghép cặp nguyên tử trên server. Hai acc gọi đồng thời vẫn chỉ tạo 1 session:
-    -- acc đầu là requester, acc sau là helper.
-    local matched = orangeMatchRequest()
-
-    if matched and matched.hop_required == true then
-        local currentServer = matched.current_server or {}
-        warn(
-            "[Orange Belt] Server full | JobId:",
-            tostring(currentServer.job_id or game.JobId),
-            "| free pairs:",
-            #(currentServer.free_pair_slots or {}),
-            "| free seats:",
-            #(currentServer.free_seats or {})
-        )
-
-        orangeSessionActive = false
-        getgenv().OrangeHopLowestServer()
-        return false
-    end
-
-    if not matched or not matched.success then
-        orangeSessionActive = false
-        task.wait(3)
-        return false
-    end
-
-    local assigned = matched.assigned or {}
-    local serverInfo = matched.server or {}
-
-    warn(
-        "[Orange Belt] ASSIGNED | role:",
-        tostring(assigned.role or matched.role),
-        "| JobId:",
-        tostring(assigned.job_id or (
-            matched.session and matched.session.job_id
-        )),
-        "| pair:",
-        tostring(assigned.pair_slot or (
-            matched.session and matched.session.pair_slot
-        )),
-        "| no-seat:",
-        tostring(assigned.seat_index or matched.seat_index),
-        "| free pairs:",
-        #(serverInfo.free_pair_slots or {}),
-        "| free seats:",
-        #(serverInfo.free_seats or {})
-    )
-
-    if matched.role == "helper" then
-        orangeSetStatus(
-            "ORANGE BELT • HELPER",
-            "Đã ghép helper, đang lấy JobId requester"
-        )
-
-        local freshState = orangeCheck()
-        local freshJoin = freshState and freshState.join
-        local targetJobId = tostring(
-            (freshJoin and freshJoin.job_id)
-            or (matched.join and matched.join.job_id)
-            or (matched.session and matched.session.job_id)
-            or ""
-        )
-        local targetPlaceId =
-            (freshJoin and freshJoin.place_id)
-            or (matched.join and matched.join.place_id)
-            or (matched.session and matched.session.place_id)
-
-        if targetJobId ~= "" and game.JobId ~= targetJobId then
-            orangeJoinJob(targetPlaceId, targetJobId)
-            return false
-        end
-
-        return orangeResumeSession(freshState or matched)
-    end
-
-    orangeSetStatus(
-        "ORANGE BELT • REQUESTER",
-        "Đã làm requester, đang tìm server low-player trước"
-    )
-
-    -- Only requester searches for a low-player server. Helper stays put and
-    -- will be assigned after requester reports the new authoritative JobId.
-    orangeHeartbeat("requester_relocating")
-    orangeSessionActive = false
-
-    if getgenv().OrangeHopLowestServer then
-        getgenv().OrangeHopLowestServer()
-    end
-
-    return false
-end
-
-task.spawn(function()
-    while task.wait(9 + math.random() * 2) do
-        if orangeSessionActive and not orangeTeleporting then
-            local heartbeat = orangeHeartbeat("online")
-            if heartbeat and heartbeat.error == "not registered" then
-                orangeRegister("online")
-            end
-        end
-    end
-end)
-
-
--- API startup diagnostic: register ngay khi file load để /health thấy player,
--- không phải đợi tới stage Orange mới đăng ký.
-task.spawn(function()
-    task.wait(2 + ORANGE_STARTUP_JITTER)
-    local result = orangeRegister("script_loaded")
-    if result and result.success then
-        warn("[ORANGE API] Register startup thành công:", plr.Name)
-    else
-        warn("[ORANGE API] Register startup thất bại:", result and result.error or "no_response")
-    end
-end)
-
-
-getgenv().DracoRunOrangeBelt = runOrangeBelt
-
--- Orange-only exports.
-getgenv().DracoOrangeApi = orangeApi
-getgenv().DracoOrangeMatchRequest = orangeMatchRequest
-getgenv().DracoOrangeJoinJob = orangeJoinJob
-getgenv().DracoOrangeRelease = orangeRelease
-getgenv().DracoOrangeCheck = orangeCheck
-
-end
 
 
 --==============================================================
--- CONNECTION REJOIN
--- Reconnects after a normal disconnect. No external console is used.
+-- STANDALONE TEST LOOP
 --==============================================================
-local orangeRejoinBusy = false
-
-local function orangeConnectionRejoin(reason)
-    if orangeRejoinBusy then
-        return
-    end
-
-    orangeRejoinBusy = true
-    orangeSessionActive = false
-    orangeTeleporting = true
-
-    pcall(function()
-        orangeHeartbeat("connection_lost")
-    end)
-
-    task.spawn(function()
-        task.wait(3)
-
-        local serverBrowser =
-            ReplicatedStorage:FindFirstChild("__ServerBrowser")
-            or ReplicatedStorage:WaitForChild("__ServerBrowser", 8)
-
-        if serverBrowser and game.JobId ~= "" then
-            local ok = pcall(function()
-                return serverBrowser:InvokeServer(
-                    "teleport",
-                    game.JobId
-                )
-            end)
-
-            if ok then
-                return
-            end
-        end
-
-        pcall(function()
-            TeleportService:Teleport(game.PlaceId, plr)
-        end)
-
-        task.wait(10)
-        orangeTeleporting = false
-        orangeRejoinBusy = false
-    end)
-end
-
-pcall(function()
-    local networkClient = game:GetService("NetworkClient")
-    networkClient.ChildRemoved:Connect(function()
-        orangeConnectionRejoin("network_removed")
-    end)
-end)
-
---==============================================================
--- STANDALONE ORANGE RUNNER
---==============================================================
-local ORANGE_RUNNER_TOKEN =
-    HttpService:GenerateGUID(false)
-
-getgenv().VortexZOrangeRunnerToken =
-    ORANGE_RUNNER_TOKEN
-
-getgenv().RunOrangeBeltStandalone = function()
-    local runner = getgenv().DracoRunOrangeBelt
-
-    if type(runner) ~= "function" then
-        warn("[ORANGE BELT] Runner chưa được export.")
-        return false
-    end
-
-    local ok, result = xpcall(
-        runner,
-        debug.traceback
-    )
-
-    if not ok then
-        warn("[ORANGE BELT] Runtime error:", result)
-        return false
-    end
-
-    return result == true
-end
-
 task.spawn(function()
     task.wait(2)
 
-    while getgenv().VortexZOrangeRunnerToken
-        == ORANGE_RUNNER_TOKEN do
+    while task.wait(2) do
+        local ok, result = pcall(function()
+            return getgenv().DracoRunBlueBelt()
+        end)
 
-        local runner = getgenv().DracoRunOrangeBelt
-
-        if type(runner) ~= "function" then
-            orangeSetStatus(
-                "ORANGE BELT • INITIALIZING",
-                "Đang chờ module trade được export"
-            )
-            task.wait(2)
-        else
-            orangeSetStatus(
-                "ORANGE BELT • START",
-                "Đang đăng ký queue và tìm cặp"
-            )
-            local ok, result = xpcall(
-                runner,
-                debug.traceback
-            )
-
-            if not ok then
-                warn("[ORANGE BELT] Runtime error:", result)
-
-                pcall(function()
-                    orangeCancel("runtime_error")
-                end)
-                pcall(function()
-                    orangeRelease()
-                end)
-
-                orangeSessionActive = false
-                orangeTeleporting = false
-                task.wait(5)
-            elseif result == true then
-                getgenv().DracoFlowUI:SetStatus(
-                    "ORANGE BELT COMPLETE"
-                )
-                return
-            else
-                if not orangeTeleporting then
-                    pcall(function()
-                        local state = orangeCheck()
-                        local session = state and state.session
-
-                        if session and (
-                            session.status == "failed"
-                            or session.status == "expired"
-                            or session.status == "cancelled"
-                        ) then
-                            orangeRelease()
-                        end
-                    end)
-
-                    orangeSessionActive = false
-                end
-
-                task.wait(3)
-            end
+        if not ok then
+            warn("[Blue Belt] Runtime error:", result)
+            task.wait(3)
+        elseif result == true then
+            warn("[Blue Belt] Hoàn tất Blue Belt.")
+            break
         end
     end
 end)
