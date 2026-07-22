@@ -594,17 +594,61 @@ local function orangePostTradeInventory(fruits)
 end
 
 local function orangeGetTradePlan()
+    -- Python identifies the session from username + X-Tenant-Id.
+    -- Do not keep stale instance/session values in the query string.
     return orangeApi(
         "GET",
         "/api/trade-plan?username="
             .. HttpService:UrlEncode(plr.Name)
-            .. "&instance_id="
-            .. HttpService:UrlEncode(ORANGE_INSTANCE_ID)
-            .. "&session_version="
-            .. HttpService:UrlEncode(
-                tostring(orangeSessionVersion or "")
-            )
     )
+end
+
+local function orangeRecoverMissingSession(context)
+    warn(
+        "[Orange Belt] Session bị mất tại",
+        tostring(context or "unknown"),
+        "- đang register/match lại"
+    )
+
+    orangeSessionActive = false
+    orangeAutoTradeRunning = false
+    orangeAutoTradeFinished = false
+    orangeSessionVersion = nil
+
+    local registered = orangeRegister("session_lost_rematch")
+    if not registered or registered.success ~= true then
+        warn("[Orange Belt] Register lại sau session_not_found thất bại.")
+        return false
+    end
+
+    local rematch = orangeMatchRequest()
+    if rematch and rematch.success == true then
+        local version = tonumber(rematch.session_version)
+            or (type(rematch.session) == "table"
+                and tonumber(rematch.session.version))
+        if version then
+            orangeSessionVersion = version
+        end
+        warn("[Orange Belt] Đã nhận session mới, vòng chính sẽ tiếp tục.")
+        return true
+    end
+
+    if rematch and rematch.hop_required == true then
+        warn(
+            "[Orange Belt] Rematch yêu cầu hop:",
+            tostring(rematch.error or "server_unavailable")
+        )
+        if getgenv().OrangeHopLowestServer then
+            getgenv().OrangeHopLowestServer()
+        end
+        return false
+    end
+
+    warn(
+        "[Orange Belt] Chưa rematch được:",
+        tostring(rematch and rematch.error or "unknown")
+    )
+    return false
 end
 
 local function orangeResetTradeInventorySnapshot()
@@ -1817,10 +1861,27 @@ local function orangePrecheckInventoriesBeforeSeat(seatIndex)
 
     while tick() - started < ORANGE_TRADE_PLAN_TIMEOUT do
         local response = orangeGetTradePlan()
+
+        if response
+            and response.success == false
+            and tostring(response.error or "") == "session_not_found" then
+            orangeRecoverMissingSession("inventory_precheck")
+            return false
+        end
+
         local plan = response and response.plan
         local action = plan and tostring(plan.action or "") or ""
 
-        if action == "waiting_helper" or action == "waiting_inventory" then
+        warn(
+            "[AUTO PRECHECK] plan:",
+            action ~= "" and action or "no_response",
+            "| target:",
+            tostring(plan and plan.username or "-"),
+            "| fruit:",
+            tostring(plan and plan.fruit and plan.fruit.name or "-")
+        )
+
+        if action == "waiting_helper" or action == "waiting_inventory" or action == "" then
             if tick() - lastInventoryPostAt >= 2 then
                 lastInventoryPostAt = tick()
                 orangePostTradeInventory(orangeInventorySnapshot())
@@ -1884,6 +1945,14 @@ local function orangePrecheckInventoriesBeforeSeat(seatIndex)
                 task.wait(0.8)
             else
                 local verifyResponse = orangeGetTradePlan()
+
+                if verifyResponse
+                    and verifyResponse.success == false
+                    and tostring(verifyResponse.error or "") == "session_not_found" then
+                    orangeRecoverMissingSession("inventory_verify")
+                    return false
+                end
+
                 local verifyPlan = verifyResponse and verifyResponse.plan
                 local verifyAction =
                     verifyPlan and tostring(verifyPlan.action or "") or ""
@@ -2090,6 +2159,15 @@ local function orangeRunAutoTrade()
 
     while tick() - started < ORANGE_TRADE_PLAN_TIMEOUT do
         local response = orangeGetTradePlan()
+
+        if response
+            and response.success == false
+            and tostring(response.error or "") == "session_not_found" then
+            orangeRecoverMissingSession("trade_coordinator")
+            orangeAutoTradeRunning = false
+            return
+        end
+
         local plan = response and response.plan
         local action = plan and tostring(plan.action or "") or ""
 
